@@ -1,6 +1,203 @@
+if(modal)new MutationObserver(()=>requestAnimationFrame(syncBlank)).observe(modal,{attributes:true,attributeFilter:['open']});
+const buttons=['projectBtn','undoBtn','redoBtn','saveBtn','exportBtn','printBtn'];
+buttons.forEach(id=>document.getElementById(id)?.addEventListener('click',()=>requestAnimationFrame(syncBlank)));
+
+/* Reusable small local-electricity spark, only on user actions. */
+let cv=null,g=null,raf=0,bolts=[],particles=[],rings=[],centerX=0,centerY=0;
+const SIZE=340;
+function ensureFX(x,y){
+ if(!cv){cv=document.createElement('canvas');cv.className='cy-art-fx';cv.setAttribute('aria-hidden','true');
+  Object.assign(cv.style,{position:'fixed',left:'0',top:'0',width:SIZE+'px',height:SIZE+'px',pointerEvents:'none',zIndex:'10000'});
+  body.appendChild(cv);const d=Math.min(1.5,devicePixelRatio||1);cv.width=SIZE*d;cv.height=SIZE*d;g=cv.getContext('2d');g.setTransform(d,0,0,d,0,0);
+ }
+ centerX=x;centerY=y;cv.style.transform=`translate3d(${x-SIZE/2}px,${y-SIZE/2}px,0)`;
+}
+function makeBolt(cx,cy){const pts=[[cx,cy]];let a=Math.random()*Math.PI*2,len=20+Math.random()*42;
+ for(let i=1;i<=5;i++)pts.push([cx+Math.cos(a)*len*i/5+(Math.random()-.5)*12,cy+Math.sin(a)*len*i/5+(Math.random()-.5)*12]);
+ bolts.push({pts,life:7,col:Math.random()>.5?'#00e8ff':'#ff2bd1'});
+}
+function frame(){
+ g.clearRect(0,0,SIZE,SIZE);g.globalCompositeOperation='lighter';g.lineCap='round';g.lineJoin='round';
+ bolts=bolts.filter(b=>{const a=b.life/7;g.beginPath();b.pts.forEach((p,i)=>i?g.lineTo(...p):g.moveTo(...p));
+ g.globalAlpha=a*.22;g.strokeStyle=b.col;g.lineWidth=7;g.stroke();g.globalAlpha=a*.85;g.lineWidth=2;g.stroke();g.globalAlpha=a;g.strokeStyle='#fff';g.lineWidth=.9;g.stroke();return --b.life>0});
+ rings=rings.filter(r=>{g.globalAlpha=r.life/9*.75;g.strokeStyle='#00e8ff';g.lineWidth=1.2;g.beginPath();g.arc(r.x,r.y,r.r,0,Math.PI*2);g.stroke();r.r+=2.5;return --r.life>0});
+ particles=particles.filter(p=>{const a=p.life/13;g.globalAlpha=a;g.strokeStyle=p.c;g.lineWidth=1;g.beginPath();g.moveTo(p.x,p.y);p.x+=p.vx;p.y+=p.vy;p.vy+=.12;g.lineTo(p.x,p.y);g.stroke();return --p.life>0});
+ g.globalAlpha=1;
+ if(bolts.length||rings.length||particles.length)raf=requestAnimationFrame(frame);
+ else {raf=0;g.clearRect(0,0,SIZE,SIZE)}
+}
+function spark(el,amount=1){
+ if(!CY()||RM()||document.hidden||!el)return;
+ const r=el.getBoundingClientRect();if(r.width<4||r.height<4)return;
+ const x=r.left+r.width/2,y=r.top+r.height/2;ensureFX(x,y);bolts=[];particles=[];rings=[];
+ for(let i=0;i<Math.ceil(4*amount);i++)makeBolt(SIZE/2,SIZE/2);
+ for(let i=0;i<Math.ceil(19*amount);i++){
+  const a=Math.random()*2*Math.PI,sp=1+Math.random()*3;
+  particles.push({x:SIZE/2,y:SIZE/2,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,c:i%3?'#b5faff':'#ffdd77',life:10+Math.random()*3});
+ }
+ rings.push({x:SIZE/2,y:SIZE/2,r:4,life:9});
+ if(!raf)raf=requestAnimationFrame(frame);
+}
+function magnet(el){if(!CY()||RM()||!el?.animate)return;
+ el.animate([{translate:'0 0'},{translate:'-1px .3px'},{translate:'1.1px -.3px'},{translate:'0 0'}],{duration:150,easing:'ease-out'});
+}
+const loadIds=new Set(['projectBtn','saveBtn','exportBtn','printBtn','marbleApply','marbleStamp','importStamp','canvasStamp','mosaicPreview','outputGo']);
+const hotIds=new Set(['undoBtn','redoBtn','marbleDropMode','marbleStirMode','marbleClear','settingsApply','fitBtn']);
+/* Capturing passive presentation listener does not preventDefault or stop propagation. */
+document.addEventListener('click',ev=>{
+ if(!CY())return;
+ const b=ev.target.closest?.('button');if(!b||b.disabled||b===button)return;
+ const load=loadIds.has(b.id);
+ const hot=load||hotIds.has(b.id)||b.hasAttribute('data-tool');
+ if(load)spark(b,1.10);
+ if(hot){magnet(b);b.classList.add('cy-hot');setTimeout(()=>b.classList.remove('cy-hot'),220)}
+},{capture:true,passive:true});
+button.addEventListener('click',()=>{if(CY()){spark(button,1.15);magnet(button)}});
+const prog=document.getElementById('marbleProgress');
+function syncProgressBar(){
+ if(!prog)return;
+ const m=(prog.textContent||'').match(/(\d{1,3})\s*%/);
+ const pct=Math.max(0,Math.min(100,m?Number(m[1]):0));
+ prog.style.setProperty('--cy-progress',pct+'%');
+ prog.style.setProperty('--cy-bar-active',(!prog.hidden&&pct<100&&pct>0)?'1':'0');
+}
+ if(prog){let prior=!prog.hidden,lastMilestone=0;
+  new MutationObserver(()=>{
+    syncProgressBar();
+    if(CY()&&!prog.hidden&&!prior){
+      spark(document.getElementById('marbleApply'),.75);
+      lastMilestone=0;
+    }
+    const match=(prog.textContent||'').match(/(\d{1,3})\s*%/);
+    const milestone=match?Math.floor(Math.min(100,+match[1])/25):0;
+    if(CY()&&!prog.hidden&&milestone>lastMilestone&&milestone>0)spark(prog,.55);
+    lastMilestone=milestone;
+    if(prog.hidden)lastMilestone=0;
+    prior=!prog.hidden;
+  }).observe(prog,{attributes:true,attributeFilter:['hidden'],childList:true,subtree:true,characterData:true});
+  syncProgressBar();
+ }
+/* On load completion, artwork itself is not flashed or modified; a short
+   confirmation at the actual stage is safe even for saved transparent art. */
+const imageInput=document.getElementById('imageInput');
+imageInput?.addEventListener('change',()=>{if(CY())spark(document.querySelector('[data-tool=stamp]')||button,.6)});
+let saved='watercolor';try{saved=localStorage.getItem(KEY)||(localStorage.getItem(OLD_KEY)==='1'?'cyber':'watercolor')}catch(_){}
+setMode(saved,false);
+})();
+</script>
+
+<script id="kids-ui-presentation">
+/* v4.0 Sticker Playground refresh. Presentation only — no listener replacement. */
+(function(){
+'use strict';
+const $id=id=>document.getElementById(id);
+const sticker=(inner,bg='#ffffff',border='#a8c8ef')=>`<svg viewBox="0 0 48 48" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><path d="M24 2C38 2 46 10 46 24S39 46 24 46 2 38 2 24 10 2 24 2Z" fill="${bg}" stroke="${border}" stroke-width="2"/><ellipse cx="19" cy="9" rx="12" ry="4" fill="#ffffff" opacity=".76"/>${inner}</svg>`;
+const mini=inner=>`<svg viewBox="0 0 48 48" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">${inner}</svg>`;
+const A={
+ project:sticker('<path d="M11 14h23v23H11z" fill="#ffe086" stroke="#c59d4f" stroke-width="2"/><path d="M16 10h22v25H16z" fill="#d8caf9" stroke="#8f82c9" stroke-width="2"/><path d="M26 14l2 5 6 1-5 4 1 6-4-3-5 3 1-6-5-4 6-1Z" fill="#8fcbff"/>','#f0fbff','#9ecff2'),
+ select:sticker('<path d="M15 9L33 27l-9 1-5 10Z" fill="#ffe97e" stroke="#7271a8" stroke-width="3" stroke-linejoin="round"/><path d="M30 9v6m-3-3h6" stroke="#a7b1ff" stroke-width="2"/>','#fff8cf','#e6d080'),
+ draw:sticker('<g transform="rotate(-32 24 24)"><rect x="18" y="8" width="12" height="28" rx="3" fill="#ffb55a" stroke="#7d78b2" stroke-width="2"/><path d="M18 11h12m-12 7h12" stroke="#fff1a7" stroke-width="2"/><path d="M18 35l6 9 6-9Z" fill="#f4bf83" stroke="#7d78b2" stroke-width="2"/><path d="M21 40h6l-3 4Z" fill="#4b5d85"/></g>','#f6f4ff','#b5c8f5'),
+ shape:sticker('<rect x="8" y="12" width="17" height="17" rx="3" fill="#8fd2ff" stroke="#5d8ec1" stroke-width="2"/><circle cx="31" cy="29" r="10" fill="#ffd480" stroke="#da9552" stroke-width="2"/><path d="M31 12l4 7h-8Z" fill="#cdb5f5"/>','#eefcff','#98d8d4'),
+ fill:sticker('<g transform="rotate(-24 21 23)"><path d="M10 14h22v19H10Z" fill="#e4ddff" stroke="#8a7fc1" stroke-width="2"/><path d="M13 14h16" stroke="#ffffff" stroke-width="3"/></g><path d="M33 30q-6 9 0 13 8 0 3-9Z" fill="#71d8e8" stroke="#3b9fbc" stroke-width="1.5"/>','#edf9ff','#95d2eb'),
+ stamp:sticker('<rect x="15" y="9" width="19" height="8" rx="4" fill="#ffd486" stroke="#b98666" stroke-width="2"/><path d="M19 16h11l4 13H15Z" fill="#cdc2ff" stroke="#8c80c7" stroke-width="2"/><path d="M13 31h24v7H13z" fill="#98dbde" stroke="#4da4aa" stroke-width="2"/><path d="M24 20l2 4h4l-3 3 1 4-4-2-4 2 1-4-3-3h4Z" fill="#fff3a4"/>','#fff8e3','#f0c8a0'),
+ effects:sticker('<path d="M20 8l3.3 8.7L32 20l-8.7 3.3L20 32l-3.3-8.7L8 20l8.7-3.3Z" fill="#fff0a3" stroke="#8272bd" stroke-width="2.8" stroke-linejoin="round"/><path d="M34 6v10m-5-5h10" stroke="#6ebfdd" stroke-width="3.3" stroke-linecap="round"/><path d="M34 30v8m-4-4h8" stroke="#e3b1f9" stroke-width="2.7" stroke-linecap="round"/>','#f8f6ff','#b7c8f3'),
+ eraser:sticker('<g transform="rotate(-28 24 24)"><rect x="13" y="12" width="22" height="26" rx="6" fill="#ffd0e7" stroke="#b987c2" stroke-width="2"/><path d="M13 26h22v5H13z" fill="#fff" opacity=".75"/></g>','#f8f4ff','#d6bef0'),
+ undo:sticker('<path d="M17 18l-8 7 8 7" fill="none" stroke="#6f7cb2" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><path d="M11 25h15c15 0 15 13 3 13" fill="none" stroke="#6ed4e4" stroke-width="5" stroke-linecap="round"/>','#effbff','#98d8eb'),
+ redo:sticker('<path d="M31 18l8 7-8 7" fill="none" stroke="#6f7cb2" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><path d="M37 25H22C7 25 7 38 19 38" fill="none" stroke="#c9b2ff" stroke-width="5" stroke-linecap="round"/>','#f6f2ff','#c3d4f2'),
+ save:sticker('<path d="M10 22h28v17H10Z" fill="#ffd57e" stroke="#b98c56" stroke-width="2"/><path d="M8 17h32v9H8Z" fill="#cbd5ff" stroke="#8795ca" stroke-width="2"/><path d="M21 17V9h6v8" fill="none" stroke="#6fa7d8" stroke-width="3"/><path d="M20 29h8" stroke="#ffffff" stroke-width="3"/>','#f8ffeb','#bde1ca'),
+ export:sticker('<rect x="11" y="20" width="26" height="19" rx="3" fill="#8fd8de" stroke="#549eac" stroke-width="2"/><path d="M24 30V9m-8 8 8-8 8 8" stroke="#91b3ff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>','#f3fbff','#aed7ee'),
+ print:sticker('<rect x="14" y="10" width="20" height="17" rx="2" fill="#fff" stroke="#8291b9" stroke-width="2"/><rect x="8" y="19" width="32" height="19" rx="4" fill="#bfe3ff" stroke="#6e9cc4" stroke-width="2"/><path d="M14 27h20v14H14z" fill="#fff6d9" stroke="#ad9e83" stroke-width="1.5"/><circle cx="34" cy="24" r="2" fill="#a8b9ff"/>','#fffafa','#d1d8ef'),
+ settings:sticker('<circle cx="24" cy="24" r="14" fill="#c9bef8" stroke="#8f85ca" stroke-width="2"/><circle cx="24" cy="24" r="7" fill="#fff4cf" stroke="#9c90b8" stroke-width="2"/><path d="M24 4v7m0 26v7M4 24h7m26 0h7M9 9l5 5m20 20 5 5M39 9l-5 5M14 34l-5 5" stroke="#9cd8f2" stroke-width="4"/>','#fbf8ff','#cfcbf0'),
+ more:sticker('<circle cx="15" cy="24" r="4" fill="#a6b7ff"/><circle cx="24" cy="24" r="4" fill="#ffd784"/><circle cx="33" cy="24" r="4" fill="#8cd8de"/>','#f5fbff','#b4d3ef'),
+ colors:sticker('<path d="M24 8C9 8 6 19 9 29s9 11 14 8c5-3-1-9 6-9 17 0 17-20-5-20Z" fill="#fff2d2" stroke="#8d90c2" stroke-width="2"/><circle cx="17" cy="17" r="3" fill="#8fd8ff"/><circle cx="27" cy="15" r="3" fill="#f3c451"/><circle cx="34" cy="22" r="3" fill="#7ad1dd"/><circle cx="17" cy="29" r="3" fill="#b8a3ff"/>','#fbfbff','#d2d8f3'),
+ options:sticker('<path d="M12 15h24M12 25h24M12 35h24" stroke="#87c1d9" stroke-width="3"/><circle cx="21" cy="15" r="4" fill="#c5b6ff" stroke="#8c84bb" stroke-width="1.5"/><circle cx="30" cy="25" r="4" fill="#ffd485" stroke="#b09770" stroke-width="1.5"/><circle cx="19" cy="35" r="4" fill="#9adbe0" stroke="#6b9aa1" stroke-width="1.5"/>','#fff8ef','#e4d6c1'),
+ check:sticker('<path d="M14 24l7 7 13-14" fill="none" stroke="#38a86d" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>','#eefef3','#8ad1a7'),
+ cancel:sticker('<path d="M16 16l16 16M32 16 16 32" fill="none" stroke="#e26f8d" stroke-width="5" stroke-linecap="round"/>','#fff2f5','#e8acc0'),
+ drop:sticker('<path d="M24 9c6 8 10 12 10 18a10 10 0 1 1-20 0c0-6 4-10 10-18Z" fill="#8fd7ff" stroke="#6aa7cf" stroke-width="2"/><circle cx="21" cy="22" r="3" fill="#fff" opacity=".85"/>','#eefaff','#a8d4ef'),
+ stir:sticker('<path d="M10 30c5-7 8-12 13-13 5-1 9 4 15 2" fill="none" stroke="#86cfe1" stroke-width="4" stroke-linecap="round"/><path d="M12 36c5-7 8-12 13-13 5-1 9 4 15 2" fill="none" stroke="#c9b5ff" stroke-width="4" stroke-linecap="round"/><circle cx="34" cy="13" r="3" fill="#ffd98b"/>','#f7f3ff','#c8bdf2'),
+ clear:sticker('<path d="M16 18h16l-2 19H18l-2-19Z" fill="#fff7cf" stroke="#c7ad6b" stroke-width="2"/><path d="M14 18h20l-2-4H16Z" fill="#cdd8ff" stroke="#8b97c4" stroke-width="2"/><path d="M21 22v10m6-10v10" stroke="#8da4d2" stroke-width="2"/>','#f8fbff','#bfd1ee'),
+ wave:sticker('<path d="M10 18c5 0 5-6 10-6s5 6 10 6 5-6 10-6" fill="none" stroke="#85d0de" stroke-width="4" stroke-linecap="round"/><path d="M10 28c5 0 5-6 10-6s5 6 10 6 5-6 10-6" fill="none" stroke="#c8b2ff" stroke-width="4" stroke-linecap="round"/>','#f3fbff','#b8d5ef'),
+ sensor:sticker('<path d="M14 31c0-7 5-12 10-12s10 5 10 12" fill="none" stroke="#87cfe0" stroke-width="4" stroke-linecap="round"/><circle cx="24" cy="15" r="5" fill="#ffd98c" stroke="#c9a05e" stroke-width="2"/>','#f7fbff','#b9d3ee'),
+ shake:sticker('<rect x="17" y="9" width="14" height="28" rx="4" fill="#d8d2ff" stroke="#8d89c4" stroke-width="2"/><path d="M12 13l-4 3m0 6 4 3m24-12 4 3m0 6-4 3" stroke="#87cee1" stroke-width="3" stroke-linecap="round"/>','#f8f7ff','#c7c2ee'),
+ stampSave:sticker('<path d="M13 14h22v18H13z" fill="#c8d6ff" stroke="#8d96c8" stroke-width="2"/><path d="M24 11v18m-7-7 7 7 7-7" stroke="#69b8cd" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 36h12" stroke="#ffd789" stroke-width="3" stroke-linecap="round"/>','#f5fbff','#b8d7ef'),
+ pin:sticker('<path d="M18 10h12l-2 8 4 4v2H16v-2l4-4-2-8Z" fill="#d1c7ff" stroke="#8d86c5" stroke-width="2"/><path d="M24 24v13" stroke="#72c7d7" stroke-width="3" stroke-linecap="round"/>','#f9f8ff','#cfc7f1'),
+ marker:mini('<g transform="rotate(-28 24 24)"><path d="M16 10h16v20H16z" fill="#d3ff5f" stroke="#84a23a" stroke-width="2"/><path d="M16 14h16" stroke="#f5ffb8" stroke-width="2"/><path d="M18 30h12l-6 10Z" fill="#55657f"/><path d="M18 30h12" stroke="#84a23a" stroke-width="2"/></g>'),
+ airbrush:mini('<rect x="16" y="8" width="16" height="24" rx="5" fill="#8fd8ff" stroke="#648fba" stroke-width="2"/><rect x="19" y="12" width="10" height="6" rx="2" fill="#ffffff" opacity=".7"/><path d="M32 18h5" stroke="#648fba" stroke-width="2" stroke-linecap="round"/><circle cx="38" cy="16" r="1.8" fill="#9fdcff"/><circle cx="41" cy="20" r="1.8" fill="#c8b7ff"/><circle cx="37" cy="23" r="1.8" fill="#ffe08f"/><circle cx="43" cy="25" r="1.8" fill="#8adbdc"/>'),
+ pastel:mini('<g transform="rotate(-18 16 26)"><rect x="8" y="20" width="12" height="18" rx="4" fill="#b8a6ff" stroke="#8778c2" stroke-width="2"/></g><g transform="rotate(12 32 23)"><rect x="24" y="15" width="12" height="18" rx="4" fill="#8fd8ff" stroke="#5fa3c7" stroke-width="2"/></g><path d="M9 33h28" stroke="#ffffffa8" stroke-width="2"/>'),
+ smudge:mini('<path d="M18 10c1-3 5-3 6 0l2 6 2-3c1-2 5-1 5 2v9c0 8-7 12-13 12S8 32 8 24c0-4 2-7 5-9l3-5Z" fill="#ffd7b4" stroke="#c89675" stroke-width="2"/><path d="M24 16v9" stroke="#e9b590" stroke-width="2"/>'),
+ size:mini('<path d="M10 32 32 10" stroke="#86cfe2" stroke-width="4" stroke-linecap="round"/><path d="M12 36 36 12" stroke="#7e81b8" stroke-width="7" stroke-linecap="round"/>'),
+ alpha:mini('<path d="M24 9c7 9 11 13 11 20a11 11 0 1 1-22 0c0-7 4-11 11-20Z" fill="#8fd8ff" stroke="#6aa7cf" stroke-width="2"/><path d="M19 31c3-5 7-8 11-10" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity=".9"/>')
+};
+const marbleBadge=sticker('<circle cx="24" cy="24" r="4" fill="#fff5d9" stroke="#ffb260" stroke-width="2"/><circle cx="24" cy="24" r="9" fill="none" stroke="#ffcb78" stroke-width="3.1"/><circle cx="24" cy="24" r="14.5" fill="none" stroke="#7ebbe9" stroke-width="3.1"/><circle cx="24" cy="24" r="19" fill="none" stroke="#b6a9fa" stroke-width="2.8"/>','#f6faff','#b6caf4');
+function addArt(element,art){
+ if(!element||element.querySelector(':scope > .kids-button-art'))return;
+ element.classList.add('kids-icon-target');
+ const deco=document.createElement('span');deco.className='kids-button-art';deco.setAttribute('aria-hidden','true');deco.innerHTML=art;element.appendChild(deco);
+}
+function wrapText(element){
+ for(const node of Array.from(element.childNodes))if(node.nodeType===Node.TEXT_NODE&&node.textContent.trim()){
+  const s=document.createElement('span');s.className='kids-original-label';element.replaceChild(s,node);s.appendChild(node);
+ }
+}
+for(const b of document.querySelectorAll('#toolbar button[data-tool]')){wrapText(b);b.setAttribute('aria-label',b.title.replace(' · 다시 누르면 옵션',''));addArt(b,A[b.dataset.tool]||A.draw)}
+const headMap={projectBtn:'project',undoBtn:'undo',redoBtn:'redo',saveBtn:'save',exportBtn:'export',printBtn:'print',settingsBtn:'settings',headerMoreBtn:'more',pinBtn:'pin',closePanel:'cancel'};
+for(const [id,key] of Object.entries(headMap)){
+ const btn=$id(id);if(!btn)continue;
+ if(id==='projectBtn')for(const n of Array.from(btn.childNodes))if(n.nodeType===Node.TEXT_NODE&&n.textContent.trim()){
+  const sp=document.createElement('span');sp.className='kids-original-chevron';btn.replaceChild(sp,n);sp.appendChild(n);
+ }
+ if(id!=='pinBtn'&&id!=='closePanel') addArt(btn,A[key]);
+}
+addArt($id('pinBtn'),A.pin);addArt($id('closePanel'),A.cancel);
+addArt($id('moreColorsBtn'),A.colors);addArt($id('optionsBtn'),A.options);
+const bottomArts=[A.size,A.alpha];
+for(const [i,pic] of bottomArts.entries()){
+ const label=document.querySelectorAll('#bottom > label')[i];if(!label)continue;
+ for(const n of Array.from(label.childNodes))if(n.nodeType===Node.TEXT_NODE&&n.textContent.trim()){
+  const span=document.createElement('span');span.className='kids-original-setting';label.replaceChild(span,n);span.appendChild(n);
+  const ico=document.createElement('span');ico.className='kids-setting-art';ico.setAttribute('aria-hidden','true');ico.innerHTML=pic;label.appendChild(ico);
+ }
+}
+const kidOptions={
+ pencil:'✏️',
+ pen:'🖊️',
+ brush:'🖌️',
+ marker:A.marker,
+ airbrush:mini('<defs><linearGradient id="spraycan" x1="0" x2="1"><stop offset="0" stop-color="#5baadf"/><stop offset=".45" stop-color="#a8e4ff"/><stop offset="1" stop-color="#5a9bc9"/></linearGradient></defs><rect x="12" y="14" width="21" height="27" rx="4.5" fill="url(#spraycan)" stroke="#456f9f" stroke-width="2.4"/><path d="M14 22h17v12H14Z" fill="#fff0a2" stroke="#d4a65f" stroke-width="1.4"/><path d="M17 28h11" stroke="#7e87b9" stroke-width="2.8" stroke-linecap="round"/><rect x="15" y="10" width="15" height="5.5" rx="2" fill="#7b81ba" stroke="#52638f" stroke-width="1.7"/><rect x="19" y="5.5" width="8" height="5.5" rx="1.5" fill="#d3dcfa" stroke="#596caa" stroke-width="1.5"/><rect x="27" y="7.5" width="7" height="3" rx="1.5" fill="#596caa"/><path d="M35 10l4-1m-4 5 6 1m-7 3 5 3" stroke="#77cfe7" stroke-width="2.3" stroke-linecap="round"/><circle cx="43" cy="10" r="1.4" fill="#75cde5"/><circle cx="44" cy="18" r="1.6" fill="#b9a6ff"/>'),
+ pastel:mini('<g transform="rotate(-18 18 26)"><rect x="8" y="18" width="14" height="21" rx="3.8" fill="#b59cff" stroke="#7e70c0" stroke-width="2.2"/><path d="M10.5 22h9" stroke="#ddd2ff" stroke-width="1.9"/></g><g transform="rotate(18 32 20)"><rect x="26" y="9" width="14" height="21" rx="3.8" fill="#8fd8ff" stroke="#5e9fc8" stroke-width="2.2"/><path d="M28.5 13h9" stroke="#dff4ff" stroke-width="1.9"/></g><circle cx="12.5" cy="35" r="1.7" fill="#c2b3ff"/><circle cx="36" cy="34.5" r="1.7" fill="#9adfff"/><circle cx="24" cy="38" r="1.7" fill="#ead7ff"/>'),
+ smudge:'👆',
+ line:'📏',polyline:mini('<polyline points="7,36 16,16 28,27 41,9" fill="none" stroke="#568bc5" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round"/>'+'<g fill="#b29bff" stroke="#ffffff" stroke-width="1.2"><circle cx="7" cy="36" r="3.2"/><circle cx="16" cy="16" r="3.2"/><circle cx="28" cy="27" r="3.2"/><circle cx="41" cy="9" r="3.2"/></g>'),polygon:'🔷',rect:'🟦',round:'🟪',circle:'🔵',ellipse:'🥚',triangle:'🔺',diamond:'💎',pentagon:'⬟',hexagon:'⬡',star:'⭐',arrow:'➡️',heart:'💗',bubble:'💬',
+ tap:'👆',lasso:'➰',bucket:'🪣',eyedrop:'💉',mirror:'🪞',copy:'🦋',decal:'👐',marble:mini('<circle cx="24" cy="24" r="4.5" fill="none" stroke="#fff8ec" stroke-width="2.1"/><circle cx="24" cy="24" r="9" fill="none" stroke="#ffd87f" stroke-width="2.1"/><circle cx="24" cy="24" r="14" fill="none" stroke="#ff9f5a" stroke-width="2.1"/><circle cx="24" cy="24" r="19" fill="none" stroke="#5eb5ff" stroke-width="2.1" opacity=".95"/><path d="M8 24c4-3 8-4 16-4s12 1 16 4" stroke="#8ad5ff" stroke-width="1.7" stroke-linecap="round" opacity=".8"/><circle cx="24" cy="24" r="1.9" fill="#ffffff"/>'),tile:'🧩',mosaic:'🟨',square:'🟦',paper:'📃'
+};
+const thumbCache=new Map();
+const hues=['#f080b5','#78b982','#66bd94','#ffcb52','#8dc8ec','#f4a2af','#73c6e4','#ba98ee','#e6a64f','#6cb8df','#f4bd5b','#f17b9a','#d69f77','#f7c8dc','#a88bdd','#bc86e8','#f8a56b','#ed747c','#e1aa6a','#f78b8f','#69c5d2','#f5a3cb','#dfa35f','#b6d9e5'];
+function stampPreview(name){
+ if(thumbCache.has(name))return thumbCache.get(name);
+ let uri='';
+ try{const i=builtInStamps.findIndex(([k])=>k===name);if(i>=0){const c=document.createElement('canvas');c.width=c.height=80;const g=c.getContext('2d');g.translate(40,40);stampArt(g,name,65,65,hues[i]);uri=c.toDataURL('image/png');c.width=c.height=1}else if(name.startsWith('custom')){uri=customStamps[Number(name.slice(6))]||''}}catch(e){console.warn('Stamp thumbnail unavailable',name,e)}
+ if(uri&&!name.startsWith('custom'))thumbCache.set(name,uri);return uri;
+}
+function decorateNamedButton(id,art,label){
+ const b=$id(id);if(!b||b.dataset.kidsDecoratedSpecial)return;wrapText(b);if(label){b.title=label;b.setAttribute('aria-label',label)}addArt(b,art);b.dataset.kidsDecoratedSpecial='1';
+}
+function decorateMarbleDock(){
+ const strong=document.querySelector('#marbleDock .marble-top strong');
+ if(strong&&!strong.dataset.kidsDecorated){strong.innerHTML=`<span class="kids-marble-title"><span aria-hidden="true">${marbleBadge}</span><span>마블링</span></span>`;strong.dataset.kidsDecorated='1'}
+ [['marbleCancel',A.cancel,'취소'],['marbleApply',A.check,'적용'],['marbleDropMode',A.drop,'물감 떨어뜨리기'],['marbleStirMode',A.stir,'휘젓기'],['marbleClear',A.clear,'초기화'],['manualWave',A.wave,'파동 만들기'],['sensorBtn',A.sensor,'기울기 센서'],['shakeBtn',A.shake,'흔들림 센서'],['marbleStamp',A.stampSave,'소재로 저장']].forEach(v=>decorateNamedButton(...v));
+}
+function decoratePanel(){
+ if(!document.body.classList.contains('kids'))return;
+ const root=$id('panelBody');if(!root)return;
+ for(const b of root.querySelectorAll('.choices button[data-key][data-val]')){
+  if(b.dataset.kidsDecorated)continue;
+  const name=b.textContent.trim(), key=b.dataset.val; b.title=name; b.setAttribute('aria-label',name);
+  const label=document.createElement('span');label.className='kids-option-label';label.textContent=name;
+  const art=document.createElement(b.dataset.key==='stamp'?'img':'span');
+  if(b.dataset.key==='stamp'){art.className='kids-option-thumb';art.alt='';art.setAttribute('aria-hidden','true');art.src=stampPreview(key)||''}
+  else{art.className='kids-option-art';art.setAttribute('aria-hidden','true');const pic=kidOptions[key]||'✨';if(typeof pic==='string'&&pic.includes('<svg'))art.innerHTML=pic;else art.textContent=pic}
   b.replaceChildren(art,label);b.dataset.kidsDecorated='1';
  }
- decorateNamedButton('openMarble',A.effects,'캔버스에서 마블링 시작');
+ decorateNamedButton('openMarble',marbleBadge,'캔버스에서 마블링 시작');
  decorateNamedButton('mosaicPreview',A.options,'자동 모자이크 미리보기');
  decorateNamedButton('closePanel',A.cancel,'패널 닫기');
  decorateNamedButton('pinBtn',A.pin,'패널 고정');

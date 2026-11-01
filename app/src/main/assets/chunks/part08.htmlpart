@@ -1,3 +1,196 @@
+ for(let i=0;i<ps.length;i++){
+  const prev=ps[Math.max(0,i-1)],next=ps[Math.min(ps.length-1,i+1)];
+  let dx=next.x-prev.x,dy=next.y-prev.y,len=Math.hypot(dx,dy);
+  if(len<1e-5){dx=1;dy=0;len=1}
+  const nx=-dy/len,ny=dx/len,r=size*(pressure?clamp(.25+(ps[i].p??.5),.15,1.25):1)/2;
+  normals.push(Math.atan2(ny,nx));
+  left.push({x:ps[i].x+nx*r,y:ps[i].y+ny*r,r});
+  right.push({x:ps[i].x-nx*r,y:ps[i].y-ny*r,r});
+ }
+ g.beginPath();g.moveTo(left[0].x,left[0].y);
+ for(let i=1;i<left.length;i++)g.lineTo(left[i].x,left[i].y);
+ const last=ps.length-1;
+ g.arc(ps[last].x,ps[last].y,left[last].r,normals[last],normals[last]+Math.PI,true);
+ for(let i=last;i>=0;i--)g.lineTo(right[i].x,right[i].y);
+ g.arc(ps[0].x,ps[0].y,left[0].r,normals[0]+Math.PI,normals[0]+2*Math.PI,true);
+ g.closePath();g.fill();
+}
+/* v1.6.5: soft airbrush dabs, distance-spaced rather than event-spaced.
+   A 96px tinted gradient stamp is cached by color (bounded to 12 colors).
+   Stroke opacity is applied only once, without the previous 0.035 multiplier. */
+const airbrushStampCache=new Map();
+function getAirbrushStamp(color){
+ let stamp=airbrushStampCache.get(color);
+ if(stamp)return stamp;
+ const rgb=/^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(color);
+ const rr=rgb?parseInt(rgb[1],16):2,gg=rgb?parseInt(rgb[2],16):132,bb=rgb?parseInt(rgb[3],16):199;
+ stamp=canvas(96,96);const sg=stamp.getContext('2d');
+ const radial=sg.createRadialGradient(48,48,0,48,48,48);
+ const rgba=a=>`rgba(${rr},${gg},${bb},${a})`;
+ radial.addColorStop(0,rgba(.48));
+ radial.addColorStop(.25,rgba(.38));
+ radial.addColorStop(.58,rgba(.13));
+ radial.addColorStop(1,rgba(0));
+ sg.fillStyle=radial;sg.fillRect(0,0,96,96);
+ if(airbrushStampCache.size>=12)airbrushStampCache.delete(airbrushStampCache.keys().next().value);
+ airbrushStampCache.set(color,stamp);
+ return stamp;
+}
+function drawAirbrush(g,o){
+ const ps=o.points;if(!ps.length)return;
+ const stamp=getAirbrushStamp(o.color),baseRadius=Math.max(.75,o.size*.5),step=Math.max(.75,baseRadius*.40);
+ const dab=p=>{
+  const pressure=o.pressure?clamp(.5+(p.p??.5),.3,1.5):1;
+  const r=baseRadius*pressure;
+  g.drawImage(stamp,p.x-r,p.y-r,2*r,2*r);
+ };
+ // A tap deposits a visible soft dot, and sparse/fast moves never skip segments.
+ dab(ps[0]);let total=0,next=step;
+ for(let i=1;i<ps.length;i++){
+  const a=ps[i-1],b=ps[i],dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy);
+  if(len<.00001)continue;
+  while(next<=total+len){
+   const t=clamp((next-total)/len,0,1);
+   dab({x:a.x+dx*t,y:a.y+dy*t,p:(a.p??.5)+((b.p??.5)-(a.p??.5))*t});
+   next+=step;
+  }
+  total+=len;
+ }
+ if(ps.length>1&&total>0&&total-(next-step)>step*.55)dab(ps[ps.length-1]);
+}
+function drawStroke(g,o){const ps=o.points;if(!ps.length)return;g.save();g.globalAlpha=o.alpha;g.globalCompositeOperation=o.brush==='eraser'?'destination-out':'source-over';g.strokeStyle=o.color;g.fillStyle=o.color;g.lineCap='round';g.lineJoin='round';let seed=o.seed||1;
+ if(o.brush==='airbrush'){drawAirbrush(g,o)}
+ else if(['pastel','pencil'].includes(o.brush)){
+  for(let i=0;i<ps.length;i++){
+   const a=ps[Math.max(0,i-1)],b=ps[i],d=Math.hypot(b.x-a.x,b.y-a.y),steps=Math.max(1,Math.ceil(d/Math.max(1,o.size*.12)));
+   for(let j=0;j<steps;j++){
+    const t=j/steps,x=a.x+(b.x-a.x)*t,y=a.y+(b.y-a.y)*t,r=o.size*(o.pressure?(.25+b.p):.5),count=o.brush==='pencil'?7:24;
+    g.globalAlpha=o.alpha*.16;
+    for(let k=0;k<count;k++){
+     const s=seed+i*400+j*37+k,ang=seeded(s)*Math.PI*2,rr=Math.sqrt(seeded(s+7))*r;
+     g.fillRect(x+Math.cos(ang)*rr,y+Math.sin(ang)*rr,o.brush==='pencil'?.8:1.6,o.brush==='pencil'?.8:1.6)
+    }
+   }
+  }
+ }else{
+  if(o.brush==='marker')g.globalAlpha=o.alpha*.25;
+  if(ps.length===1){const radius=o.size*(o.pressure?clamp(.25+(ps[0].p??.5),.15,1.25):1)/2;g.beginPath();g.arc(ps[0].x,ps[0].y,radius,0,Math.PI*2);g.fill()}
+  else if(o.pressure)strokePressureOutline(g,ps,o.size,true);
+  else{g.lineWidth=o.size;g.beginPath();g.moveTo(ps[0].x,ps[0].y);for(let i=1;i<ps.length;i++)g.lineTo(ps[i].x,ps[i].y);g.stroke()}
+ }
+ g.restore()
+}
+function drawObject(g,o){if(o.kind==='ribbonPreview'){const c=renderRibbonBuffer();if(c)g.drawImage(c,0,0);return}if(o.kind==='eraseMask'){const mask=assets.get(o.src);if(mask){g.save();g.globalCompositeOperation='destination-out';g.drawImage(mask,0,0,doc.w,doc.h);g.restore()}return}if(o.kind==='stroke'){drawStroke(g,o);return}g.save();if(o.matrix)g.transform(...o.matrix);g.translate(o.x||0,o.y||0);g.rotate(o.angle||0);g.scale(o.fx||1,o.fy||1);g.globalAlpha=o.alpha??1;
+if(o.kind==='image'){const im=assets.get(o.src);if(im)g.drawImage(im,-o.w/2,-o.h/2,o.w,o.h)}else if(o.kind==='stamp')stampArt(g,o.stamp,o.w,o.h,o.color);else if(o.kind==='shape'){g.strokeStyle=o.color;g.fillStyle=o.fillColor||o.color;g.lineWidth=o.lineWidth||2;if(o.points){g.beginPath();o.points.forEach((p,i)=>g[i?'lineTo':'moveTo'](p.x,p.y));if(o.closed)g.closePath()}else pathShape(g,o.shape,o.w,o.h);if(o.fill&&o.shape!=='line')g.fill();if(o.stroke)g.stroke()}g.restore()}
+function render(){if(board.width!==doc.w||board.height!==doc.h){board.width=doc.w;board.height=doc.h}ctx.clearRect(0,0,doc.w,doc.h);for(const o of doc.objects)drawObject(ctx,o);paint()}
+function paint(){if(framePending)return;framePending=true;requestAnimationFrame(()=>{framePending=false;drawView()})}
+function drawView(){vctx.setTransform(dpr,0,0,dpr,0,0);vctx.clearRect(0,0,view.width/dpr,view.height/dpr);vctx.save();vctx.translate(camera.x,camera.y);vctx.scale(camera.z,camera.z);vctx.shadowColor='#0f172a18';vctx.shadowBlur=24/camera.z;vctx.fillStyle=doc.bg==='transparent'?'#fff':doc.bg;vctx.fillRect(0,0,doc.w,doc.h);vctx.shadowBlur=0;if(doc.bg==='transparent'){vctx.fillStyle='#e2e8f0';for(let y=0;y<doc.h;y+=20)for(let x=0;x<doc.w;x+=20)if((x/20+y/20)%2===0)vctx.fillRect(x,y,20,20)}vctx.save();vctx.beginPath();vctx.rect(0,0,doc.w,doc.h);vctx.clip();if(!(preview&&(!axis||settings.effect==='decal')))vctx.drawImage(board,0,0);if(live){if(live.kind==='stroke'){if(live.brush==='eraser'){const tmp=canvas(doc.w,doc.h),tg=tmp.getContext('2d');tg.drawImage(board,0,0);drawStroke(tg,live);vctx.fillStyle=doc.bg==='transparent'?'#fff':doc.bg;vctx.fillRect(0,0,doc.w,doc.h);vctx.drawImage(tmp,0,0)}else drawStroke(vctx,live)}else if(live.kind==='ribbonErasePreview'){const tmp=renderRibbonErasePreview();if(tmp){vctx.fillStyle=doc.bg==='transparent'?'#fff':doc.bg;vctx.fillRect(0,0,doc.w,doc.h);vctx.drawImage(tmp,0,0)}}else drawObject(vctx,live)}if(marble)vctx.drawImage(marble.c,0,0,doc.w,doc.h);if(preview){vctx.globalAlpha=axis&&settings.effect!=='decal'?.7:1;if(axis&&settings.effect==='decal')vctx.drawImage(preview,0,0,doc.w,doc.h);else vctx.drawImage(preview,0,0);vctx.globalAlpha=1}if(settings.grid&&camera.z>.15){vctx.strokeStyle='#64748b22';vctx.lineWidth=1/camera.z;vctx.beginPath();for(let x=0;x<=doc.w;x+=25){vctx.moveTo(x,0);vctx.lineTo(x,doc.h)}for(let y=0;y<=doc.h;y+=25){vctx.moveTo(0,y);vctx.lineTo(doc.w,y)}vctx.stroke()}vctx.restore();
+const o=objectById();if(o&&o.kind!=='stroke'){vctx.save();if(o.matrix)vctx.transform(...o.matrix);vctx.translate(o.x,o.y);vctx.rotate(o.angle||0);vctx.strokeStyle='#0284c7';vctx.lineWidth=1.5/camera.z;vctx.setLineDash([5/camera.z,4/camera.z]);vctx.strokeRect(-o.w/2,-o.h/2,o.w,o.h);vctx.setLineDash([]);vctx.beginPath();vctx.moveTo(0,-o.h/2);vctx.lineTo(0,-o.h/2-28/camera.z);vctx.stroke();for(const p of [[-o.w/2,-o.h/2],[o.w/2,-o.h/2],[-o.w/2,o.h/2],[o.w/2,o.h/2],[0,-o.h/2-28/camera.z]]){vctx.fillStyle='white';vctx.beginPath();vctx.arc(...p,6/camera.z,0,Math.PI*2);vctx.fill();vctx.stroke()}vctx.restore()}
+if(drag&&['rectselect','lasso'].includes(drag.type)){vctx.strokeStyle='#0284c7';vctx.lineWidth=1.5/camera.z;vctx.setLineDash([5/camera.z,4/camera.z]);vctx.beginPath();if(drag.type==='rectselect')vctx.rect(drag.start.x,drag.start.y,drag.last.x-drag.start.x,drag.last.y-drag.start.y);else drag.points.forEach((p,i)=>vctx[i?'lineTo':'moveTo'](p.x,p.y));vctx.stroke();vctx.setLineDash([])}
+if(axis){vctx.strokeStyle='#0284c7';vctx.lineWidth=2/camera.z;vctx.setLineDash([8/camera.z,6/camera.z]);vctx.beginPath();vctx.moveTo(axis.a.x,axis.a.y);vctx.lineTo(axis.b.x,axis.b.y);vctx.stroke();vctx.setLineDash([]);for(const p of [axis.a,axis.b]){vctx.fillStyle='white';vctx.beginPath();vctx.arc(p.x,p.y,7/camera.z,0,7);vctx.fill();vctx.stroke()}if(settings.effect!=='decal'){const m=axisMid(),n=axisNormal();vctx.beginPath();vctx.moveTo(m.x,m.y);const tip={x:m.x+n.x*axis.dir*40/camera.z,y:m.y+n.y*axis.dir*40/camera.z};vctx.lineTo(tip.x,tip.y);vctx.moveTo(tip.x-n.x*axis.dir*10/camera.z-n.y*6/camera.z,tip.y-n.y*axis.dir*10/camera.z+n.x*6/camera.z);vctx.lineTo(tip.x,tip.y);vctx.lineTo(tip.x-n.x*axis.dir*10/camera.z+n.y*6/camera.z,tip.y-n.y*axis.dir*10/camera.z-n.x*6/camera.z);vctx.stroke()}}vctx.restore();$('zoomLabel').textContent=Math.round(camera.z*100)+'%';placeContext()}
+function setTool(t){if(marble){toast('마블링을 먼저 적용하거나 취소하세요');return}if(pointerMap.size)return;const prev=tool;if(prev!==t)rememberBrushProfile();if(axis)cancelEffect();live=null;drag=null;tool=t;if(t==='draw'&&['bucket','eyedrop'].includes(settings.brush))settings.brush=lastDrawingBrush;if(t==='fill'&&!['bucket','eyedrop'].includes(settings.brush))settings.brush='bucket';if(prev!==t&&(t==='draw'||t==='eraser'))restoreBrushProfile(t==='eraser'?'eraser':settings.brush);updateColorControls();if(t!=='effects')selected=null;document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('active',b.dataset.tool===t));showPanel();paint()}
+function choice(key,entries){return '<div class="choices">'+entries.map(([v,n])=>`<button data-key="${key}" data-val="${v}" class="${settings[key]===v?'active':''}">${n}</button>`).join('')+'</div>'}
+function range(key,name,min,max,step=1){return `<div class="field"><label>${name}</label><input type="range" data-range="${key}" min="${min}" max="${max}" step="${step}" value="${settings[key]}"><output>${settings[key]}</output></div>`}
+function check(key,name){return `<div class="field"><label><input type="checkbox" data-check="${key}" ${settings[key]?'checked':''}>${name}</label></div>`}
+function showPanel(){$('panel').hidden=false;$('panelTitle').textContent=toolNames[tool];let s='';
+if(tool==='draw')s=choice('brush',[['pencil','연필'],['pen','펜'],['brush','붓'],['marker','형광펜'],['airbrush','에어브러시'],['pastel','파스텔'],['smudge','문지르기']])+range('smooth','선 보정',0,.85,.05)+check('pressure','터치펜 필압 사용')+'<p class="note">두 손가락을 함께 움직이면 두 점 사이에 띠 모양으로 채색합니다. 화면 이동·확대는 선택 도구에서 가능합니다.</p>';
+if(tool==='shape')s=choice('shape',[['line','직선'],['polyline','꺾은선'],['polygon','다각형'],['rect','사각형'],['round','둥근 사각형'],['circle','원'],['ellipse','타원'],['triangle','삼각형'],['diamond','마름모'],['pentagon','오각형'],['hexagon','육각형'],['star','별'],['arrow','화살표'],['heart','하트'],['bubble','말풍선']])+check('stroke','테두리 표시')+check('fillShape','내부 채우기')+'<p class="note">드래그하여 그립니다. 꺾은선·다각형은 꼭짓점을 터치한 뒤 완료를 누르세요.</p><button id="finishPoly">다각형 완료</button>';
+if(tool==='select')s=choice('select',[['tap','객체 선택'],['rect','사각 선택'],['lasso','올가미']])+'<p class="note">객체를 터치하여 선택합니다. 모서리 핸들은 크기, 위쪽 핸들은 회전입니다. 빈 공간 드래그 또는 두 손가락으로 화면을 이동합니다. 영역 선택은 현재 그림을 합성한 뒤 잘라내므로 실행취소로 원래 객체를 복구할 수 있습니다.</p>';
+if(tool==='fill')s=choice('brush',[['bucket','페인트통'],['eyedrop','스포이트']])+range('tolerance','색 허용차',0,100)+'<p class="note">페인트통은 연결된 영역을 채웁니다. 채우기 시 현재 그림을 하나의 이미지로 합칩니다.</p>';
+if(tool==='stamp')s=choice('stamp',[...builtInStamps,...customStamps.map((_,i)=>['custom'+i,'내 그림 '+(i+1)])])+range('stampSize','크기',20,500)+range('stampSpace','연속 간격',10,200)+'<button id="importStamp">이미지로 등록</button><button id="canvasStamp">현재 그림 등록</button><button id="manageStamps">등록 스탬프 관리'+(customStamps.length?' ('+customStamps.length+')':'')+'</button><p class="note">터치 또는 드래그하여 연속으로 찍습니다. 저장한 소재는 이 브라우저에서 다시 사용할 수 있습니다.</p>';
+if(tool==='effects')s=choice('effect',[['mirror','기준선 반전'],['copy','대칭 복사'],['decal','데칼코마니'],['marble','마블링'],['tile','직접 모자이크'],['mosaic','자동 모자이크']])+(settings.effect==='decal'?range('spread','번짐',0,20)+range('press','압착',0,.7,.05):'')+(['mirror','copy','decal'].includes(settings.effect)?'<p class="note">'+(settings.effect==='decal'?'캔버스에 접을 기준선을 그리세요. 점선 양쪽 물감이 함께 눌리고 퍼집니다. 방향 지정 없이 결과가 양면에 동일하게 전사됩니다.':'캔버스에 기준선을 그리세요. 선을 드래그해 조절하고, 화살표로 반전·복사 방향을 바꿉니다.')+'</p>':'')+(['tile','mosaic'].includes(settings.effect)?choice('tile',[['square','정사각형'],['triangle','삼각형'],['circle','원형'],['paper','색종이']])+range('tileSize','조각 크기',8,120)+range('gap','간격',0,20)+range('tileAngle','회전',0,180)+range('tileColors','최대 색상 수',2,32)+(settings.effect==='mosaic'?'<button id="mosaicPreview" class="primary">자동 모자이크 미리보기</button>':''):'')+(settings.effect==='marble'?'<button id="openMarble" class="primary">캔버스에서 마블링 시작</button><p class="note">현재 캔버스 위에서 물감을 떨어뜨리고 휘젓습니다. 적용 전까지 원본 그림은 변경되지 않습니다.</p>':'');
+if(tool==='eraser')s='<p class="note">한 손가락이나 펜은 일반 지우개입니다. 두 손가락을 함께 움직이면 두 접점 사이를 넓게 지웁니다. 그림·도형·스탬프에도 적용되며, 두 손가락으로 지운 작업은 한 번에 실행취소할 수 있습니다.</p>'+check('pressure','터치펜 필압 사용');
+$('panelBody').innerHTML=s;$('pinBtn').classList.toggle('active',settings.pin);$('pinBtn').setAttribute('aria-pressed',String(!!settings.pin));
+$('panelBody').querySelectorAll('[data-key]').forEach(b=>b.onclick=()=>{if(tool==='draw'&&b.dataset.key==='brush'&&brushProfiles[b.dataset.val]){rememberBrushProfile();settings.brush=b.dataset.val;lastDrawingBrush=b.dataset.val;restoreBrushProfile(b.dataset.val)}else settings[b.dataset.key]=b.dataset.val;if(b.dataset.key==='effect')cancelEffect();updateColorControls();showPanel();if(b.dataset.key==='effect'&&b.dataset.val==='marble')openMarble()});$('panelBody').querySelectorAll('[data-range]').forEach(i=>i.oninput=()=>{settings[i.dataset.range]=+i.value;i.nextElementSibling.textContent=i.value;if(axis)buildReflection(true)});$('panelBody').querySelectorAll('[data-check]').forEach(i=>i.onchange=()=>settings[i.dataset.check]=i.checked);
+if($('finishPoly'))$('finishPoly').onclick=finishPolygon;if($('importStamp'))$('importStamp').onclick=()=>importImage(true);if($('canvasStamp'))$('canvasStamp').onclick=()=>registerStamp(exportCanvas(false));if($('manageStamps'))$('manageStamps').onclick=manageStamps;if($('openMarble'))$('openMarble').onclick=openMarble;if($('mosaicPreview'))$('mosaicPreview').onclick=mosaicPreview}
+$('optionsBtn').onclick=()=>{$('panel').hidden?!showPanel():$('panel').hidden=true};$('closePanel').onclick=()=>$('panel').hidden=true;$('pinBtn').onclick=()=>{settings.pin=!settings.pin;$('pinBtn').classList.toggle('active',settings.pin);$('pinBtn').setAttribute('aria-pressed',String(settings.pin))};
+$('color').oninput=e=>applyColor(e.target.value);$('size').oninput=e=>{settings.size=+e.target.value;$('sizeOut').textContent=e.target.value;rememberBrushProfile()};$('alpha').oninput=e=>{settings.alpha=+e.target.value/100;$('alphaOut').textContent=e.target.value+'%';rememberBrushProfile()};
+function syncSelectedStyle(){const o=objectById();if(o&&['shape','stamp'].includes(o.kind)){checkpoint();o.color=settings.color;o.fillColor=settings.color;changed()}}
+$('undoBtn').onclick=undo;$('redoBtn').onclick=redo;$('zoomIn').onclick=()=>zoom(1.2);$('zoomOut').onclick=()=>zoom(1/1.2);$('fitBtn').onclick=fit;
+// Browser fullscreen is independent of drawing UI: never hide the toolbar or header.
+function refreshFullscreenButton(){const active=!!document.fullscreenElement;$('fullscreenBtn').innerHTML=icon(active?'restore':'fullscreen');$('fullscreenBtn').title=active?'전체화면 종료':'전체화면';$('fullscreenBtn').setAttribute('aria-label',active?'전체화면 종료':'전체화면');requestAnimationFrame(resize)}
+$('fullscreenBtn').onclick=async()=>{if(document.fullscreenElement){try{await document.exitFullscreen()}catch(e){toast('전체화면 종료 실패: '+e.message)}return}if(typeof document.documentElement.requestFullscreen!=='function'){toast('이 브라우저에서는 전체화면을 지원하지 않습니다.');return}try{await document.documentElement.requestFullscreen()}catch(e){toast('전체화면을 사용할 수 없습니다. 브라우저 권한이나 실행 방식을 확인하세요.')}};
+document.addEventListener('fullscreenchange',refreshFullscreenButton);
+/* Input: pointer events, coalesced samples, explicit gesture cancellation. */
+function inPaper(p){return p.x>=0&&p.y>=0&&p.x<=doc.w&&p.y<=doc.h}
+function startStroke(p,e){live={id:uid(),kind:'stroke',brush:tool==='eraser'?'eraser':settings.brush,points:[p],color:settings.color,size:settings.size,alpha:settings.alpha,pressure:e.pointerType==='pen'&&settings.pressure,seed:Math.floor(Math.random()*1e5)}}
+function localPoint(o,p){let x=p.x-o.x,y=p.y-o.y,a=-(o.angle||0);return{x:x*Math.cos(a)-y*Math.sin(a),y:x*Math.sin(a)+y*Math.cos(a)}}
+function hit(p){for(let i=doc.objects.length-1;i>=0;i--){const o=doc.objects[i];if(o.kind==='stroke'||o.kind==='eraseMask'||o.matrix)continue;const q=localPoint(o,p);if(Math.abs(q.x)<=o.w/2+6/camera.z&&Math.abs(q.y)<=o.h/2+6/camera.z)return o}return null}
+function selectedHandle(p){const o=objectById();if(!o)return null;const q=localPoint(o,p),r=18/camera.z;if(Math.hypot(q.x,q.y+o.h/2+28/camera.z)<r)return'rotate';for(const x of [-1,1])for(const y of [-1,1])if(Math.hypot(q.x-x*o.w/2,q.y-y*o.h/2)<r)return'resize';return null}
+view.addEventListener('pointerdown',e=>{if(marble){marblePointerStart(e);return}if($('modal').open)return;if(e.pointerType==='touch'&&(penActive||settings.penOnly))return;if(e.pointerType==='pen'){if([...pointerMap.values()].some(p=>p.type==='touch')){rollbackInteraction();pointerMap.clear();gesture=null;gestureBlock=false}penActive=true;}e.preventDefault();view.setPointerCapture(e.pointerId);const p=point(e);pointerMap.set(e.pointerId,{...p,cx:e.clientX,cy:e.clientY,type:e.pointerType});
+if(pointerMap.size===2&&e.pointerType==='touch'){rollbackInteraction();const ps=[...pointerMap.values()];if(tool==='select'){gesture={type:'view',distance:Math.hypot(ps[1].cx-ps[0].cx,ps[1].cy-ps[0].cy),x:(ps[0].cx+ps[1].cx)/2,y:(ps[0].cy+ps[1].cy)/2}}else if(tool==='draw'||tool==='eraser'){createRibbonBuffer(tool==='eraser'?'erase':'paint');gesture={type:'ribbon',mode:tool==='eraser'?'erase':'paint',old:ps.map(p=>({x:p.x,y:p.y}))}}else gesture={type:'ignore'};gestureBlock=true;paint();return}if(pointerMap.size>1||gestureBlock)return;
+if(!settings.pin)$('panel').hidden=true;
+if(axis){const da=Math.hypot(p.x-axis.a.x,p.y-axis.a.y),dbb=Math.hypot(p.x-axis.b.x,p.y-axis.b.y);drag={type:'axis',handle:da<22/camera.z?'a':dbb<22/camera.z?'b':'move',start:p,old:clone(axis)};return}
+if(tool==='select'||(selected&&selectedHandle(p))){const h=selectedHandle(p),o=h?objectById():hit(p);if(h){checkpoint();drag={type:h,start:p,original:clone(o)};return}if(settings.select==='tap'){if(o){selected=o.id;checkpoint();drag={type:'move',start:p,original:clone(o)}}else{selected=null;drag={type:'pan',cx:e.clientX,cy:e.clientY,x:camera.x,y:camera.y}}}else{selected=null;drag={type:settings.select==='rect'?'rectselect':'lasso',start:p,last:p,points:[p]}}paint();return}
+if(!inPaper(p))return;
+if(tool==='draw'||tool==='eraser'){if(settings.brush==='smudge'&&tool==='draw'){checkpoint();drag={type:'smudge',last:p};smudge(p,p)}else startStroke(p,e)}
+else if(tool==='shape'){if(['polygon','polyline'].includes(settings.shape)){if(!live||live.kind!=='shape'){live={id:uid(),kind:'shape',shape:settings.shape,x:0,y:0,w:1,h:1,points:[],closed:settings.shape==='polygon',fill:settings.fillShape&&settings.shape==='polygon',stroke:settings.stroke,color:settings.color,lineWidth:settings.size,alpha:settings.alpha}}live.points.push(p);paint();return}drag={type:'shape',start:p};live={id:uid(),kind:'shape',shape:settings.shape,x:p.x,y:p.y,w:1,h:1,angle:0,color:settings.color,lineWidth:settings.size,alpha:settings.alpha,stroke:settings.stroke,fill:settings.fillShape}}
+else if(tool==='fill'){if(settings.brush==='eyedrop')eyedrop(p);else bucket(p)}
+else if(tool==='stamp'){checkpoint();const count=doc.objects.length;addStamp(p);drag={type:'stamp',last:p,count}}
+else if(tool==='effects'){if(['mirror','copy','decal'].includes(settings.effect)){axis={a:p,b:{x:p.x+1,y:p.y},dir:1};drag={type:'axisNew'}}else if(settings.effect==='tile'){checkpoint();const count=doc.objects.length;addTile(p);drag={type:'tile',last:p,count}}else if(settings.effect==='marble')openMarble();else mosaicPreview()}paint()});
+view.addEventListener('pointermove',e=>{if(marble){marblePointerMove(e);return}if(!pointerMap.has(e.pointerId))return;e.preventDefault();const p=point(e);pointerMap.set(e.pointerId,{...p,cx:e.clientX,cy:e.clientY,type:e.pointerType});if(gesture){const ps=[...pointerMap.values()];if(ps.length<2)return;if(gesture.type==='view'){const distance=Math.hypot(ps[1].cx-ps[0].cx,ps[1].cy-ps[0].cy),x=(ps[0].cx+ps[1].cx)/2,y=(ps[0].cy+ps[1].cy)/2,r=stage.getBoundingClientRect();zoom(distance/Math.max(gesture.distance,1),gesture.x-r.left,gesture.y-r.top);camera.x+=x-gesture.x;camera.y+=y-gesture.y;gesture.distance=distance;gesture.x=x;gesture.y=y}else if(gesture.type==='ribbon'){const now=ps.map(q=>({x:q.x,y:q.y}));appendRibbonQuad([...gesture.old,now[1],now[0]]);gesture.old=now;live={kind:gesture.mode==='erase'?'ribbonErasePreview':'ribbonPreview'}}paint();return}if(gestureBlock)return;
+if(live?.kind==='stroke'){const events=e.getCoalescedEvents?.()||[e];for(const ev of events){const q=point(ev),last=live.points.at(-1);if(Math.hypot(q.x-last.x,q.y-last.y)<.15)continue;const s=settings.smooth;q.x=last.x*s+q.x*(1-s);q.y=last.y*s+q.y*(1-s);live.points.push(q)}paint();return}if(!drag)return;
+if(drag.type==='pan'){camera.x=drag.x+e.clientX-drag.cx;camera.y=drag.y+e.clientY-drag.cy}
+if(['move','resize','rotate'].includes(drag.type)){const o=objectById(),a=drag.original;if(drag.type==='move'){o.x=a.x+p.x-drag.start.x;o.y=a.y+p.y-drag.start.y}if(drag.type==='rotate')o.angle=(a.angle||0)+Math.atan2(p.y-a.y,p.x-a.x)-Math.atan2(drag.start.y-a.y,drag.start.x-a.x);if(drag.type==='resize'){const scale=clamp(Math.hypot(p.x-a.x,p.y-a.y)/Math.max(1,Math.hypot(drag.start.x-a.x,drag.start.y-a.y)),.05,20);o.w=a.w*scale;o.h=a.h*scale;if(o.points)o.points=a.points.map(q=>({x:q.x*scale,y:q.y*scale}))}render()}
+if(drag.type==='shape'){let dx=p.x-drag.start.x,dy=p.y-drag.start.y;if(settings.shape==='circle'){dx=(Math.sign(dx)||1)*Math.max(Math.abs(dx),Math.abs(dy));dy=(Math.sign(dy)||1)*Math.abs(dx)}live.x=drag.start.x+dx/2;live.y=drag.start.y+dy/2;live.w=Math.max(1,Math.abs(dx));live.h=Math.max(1,Math.abs(dy));live.fx=dx<0?-1:1;live.fy=dy<0?-1:1}
+if(['rectselect','lasso'].includes(drag.type)){drag.last=p;drag.points.push(p)}
+if(['stamp','tile'].includes(drag.type)){const gap=drag.type==='stamp'?settings.stampSpace:settings.tileSize+settings.gap;let d=Math.hypot(p.x-drag.last.x,p.y-drag.last.y);if(d>=gap){const a=drag.last,n=Math.min(100,Math.floor(d/gap));for(let i=1;i<=n;i++){const q={x:a.x+(p.x-a.x)*i*gap/d,y:a.y+(p.y-a.y)*i*gap/d};drag.type==='stamp'?addStamp(q):addTile(q);drag.last=q}}}
+if(drag.type==='smudge'){smudge(drag.last,p);drag.last=p}
+if(drag.type==='axisNew'){axis.b=p;paint()}
+if(drag.type==='axis'){if(drag.handle==='move'){axis.a={x:drag.old.a.x+p.x-drag.start.x,y:drag.old.a.y+p.y-drag.start.y};axis.b={x:drag.old.b.x+p.x-drag.start.x,y:drag.old.b.y+p.y-drag.start.y}}else axis[drag.handle]=p;buildReflection(true)}paint()});
+function rollbackInteraction(){
+ releaseRibbonBuffer();live=null;
+ if(drag){if(['move','resize','rotate'].includes(drag.type)){const o=objectById();if(o)Object.assign(o,drag.original);history.pop()}
+ else if(['stamp','tile'].includes(drag.type)){doc.objects.length=drag.count;history.pop()}
+ else if(drag.type==='smudge'){history.pop()}
+ else if(drag.type==='axisNew'){cancelEffect()}
+ else if(drag.type==='axis'){axis=drag.old;buildReflection()}}
+ drag=null;render();updateUndo();
+}
+async function pointerEnd(e,cancel=false){if(marble){marblePointerEnd(e);return}if(!pointerMap.has(e.pointerId))return;pointerMap.delete(e.pointerId);if(e.pointerType==='pen')penActive=false;
+if(gesture){if(gesture.type==='ribbon'&&ribbonBuffer?.hasPath&&!cancel){checkpoint();doc.objects.push(finishRibbon(gesture.mode));changed()}releaseRibbonBuffer();live=null;gesture=null;gestureBlock=pointerMap.size>0;paint();return}if(gestureBlock){if(!pointerMap.size)gestureBlock=false;return}if(cancel){rollbackInteraction();return}
+if(live?.kind==='stroke'){const end=point(e),last=live.points.at(-1);if(Math.hypot(end.x-last.x,end.y-last.y)>.1)live.points.push(end);checkpoint();doc.objects.push(live);live=null;changed()}else if(drag?.type==='shape'&&live){checkpoint();doc.objects.push(live);selected=live.id;live=null;changed()}
+if(drag){if(['move','resize','rotate','stamp','tile'].includes(drag.type))changed(drag.type==='stamp');if(drag.type==='smudge')await commitBoard();if(['rectselect','lasso'].includes(drag.type))await selectRegion(drag);if(['axisNew','axis'].includes(drag.type))buildReflection()}drag=null;paint()}
+view.addEventListener('pointerup',e=>pointerEnd(e));view.addEventListener('pointercancel',e=>pointerEnd(e,true));view.addEventListener('lostpointercapture',e=>{if(pointerMap.has(e.pointerId))pointerEnd(e,true)});
+view.addEventListener('wheel',e=>{e.preventDefault();const r=stage.getBoundingClientRect();zoom(Math.exp(-e.deltaY*.0015),e.clientX-r.left,e.clientY-r.top)},{passive:false});
+
+let ribbonBuffer=null;
+function createRibbonBuffer(mode='paint'){
+ releaseRibbonBuffer();const c=canvas(doc.w,doc.h);
+ ribbonBuffer={c,g:c.getContext('2d'),path:new Path2D(),dirty:false,hasPath:false,
+   mode,color:settings.color,alpha:settings.alpha,preview:null,previewDirty:true};
+ return ribbonBuffer;
+}
+function appendRibbonQuad(ps){
+ if(!ribbonBuffer)createRibbonBuffer();
+ ps.forEach((p,i)=>ribbonBuffer.path[i?'lineTo':'moveTo'](p.x,p.y));
+ ribbonBuffer.path.closePath();ribbonBuffer.dirty=true;ribbonBuffer.hasPath=true;ribbonBuffer.previewDirty=true;
+}
+function renderRibbonBuffer(){
+ const b=ribbonBuffer;if(!b)return null;
+ if(b.dirty){b.g.clearRect(0,0,b.c.width,b.c.height);b.g.globalAlpha=b.alpha;
+  b.g.fillStyle=b.mode==='erase'?'#000000':b.color;b.g.fill(b.path);b.dirty=false;b.previewDirty=true}
+ return b.c;
+}
+function renderRibbonErasePreview(){
+ const b=ribbonBuffer;if(!b||b.mode!=='erase')return null;
+ const mask=renderRibbonBuffer();
+ if(!b.preview){b.preview=canvas(doc.w,doc.h);b.previewDirty=true}
+ if(b.previewDirty){const g=b.preview.getContext('2d');g.globalCompositeOperation='source-over';
+  g.clearRect(0,0,doc.w,doc.h);g.drawImage(board,0,0);
+  g.globalCompositeOperation='destination-out';g.drawImage(mask,0,0);
+  g.globalCompositeOperation='source-over';b.previewDirty=false}
+ return b.preview;
+}
+function releaseRibbonBuffer(){
+ if(ribbonBuffer){ribbonBuffer.c.width=ribbonBuffer.c.height=1;
+  if(ribbonBuffer.preview)ribbonBuffer.preview.width=ribbonBuffer.preview.height=1;
+  ribbonBuffer=null}
+}
+function finishRibbon(mode='paint'){
+ const c=renderRibbonBuffer();if(!c)return null;
+ const src=c.toDataURL(),retained=canvas(c.width,c.height);
+ retained.getContext('2d').drawImage(c,0,0);assets.set(src,retained);
  const o={id:uid(),kind:mode==='erase'?'eraseMask':'image',src,
   x:doc.w/2,y:doc.h/2,w:doc.w,h:doc.h,alpha:1};
  releaseRibbonBuffer();return o;
@@ -105,196 +298,3 @@ function confirmDeleteStamp(index){
  $('backToStampList').onclick=manageStamps;
  $('deleteCustomStamp').onclick=async()=>{
   const button=$('deleteCustomStamp');button.disabled=true;
-  try{
-   const next=customStamps.filter((_,i)=>i!==index);
-   // First persist the shorter list, avoiding deletion being silently undone on reload.
-   if(db)await dbPut('meta',{id:'stamps',value:next});
-   customStamps=next;
-   if(settings.stamp.startsWith('custom')){
-    const old=Number(settings.stamp.slice(6));
-    if(old===index)settings.stamp='flower';
-    else if(old>index)settings.stamp='custom'+(old-1);
-   }
-   pruneAssets();
-   if(tool==='stamp')showPanel();
-   manageStamps();
-   toast(db?'등록 스탬프를 삭제했습니다':'현재 목록에서 삭제했습니다. 이 환경에서는 보관함 저장이 지원되지 않습니다.');
-  }catch(e){button.disabled=false;toast('스탬프 삭제 실패: '+e.message)}
- };
-}
-let customStamps=[];function addStamp(p){let o={id:uid(),kind:'stamp',stamp:settings.stamp,color:settings.color,x:p.x,y:p.y,w:settings.stampSize,h:settings.stampSize,alpha:settings.alpha};if(settings.stamp.startsWith('custom')){const src=customStamps[+settings.stamp.slice(6)];if(!src)return;o.kind='image';o.src=src;const im=assets.get(src);o.h=o.w*im.height/im.width}doc.objects.push(o);
- // v2.0.4: a stamp is appended on top of the already rendered board.
- // Avoid replaying every old object for every new stamp (quadratic cost).
- // The individual stamp stays in doc.objects for selection, undo, save and export.
- drawObject(ctx,o);paint()}
-async function registerStamp(c){const small=canvas(Math.min(2048,c.width),Math.min(2048,c.width)*c.height/c.width);small.getContext('2d').drawImage(c,0,0,small.width,small.height);const src=small.toDataURL();customStamps.push(src);await getAsset(src);if(db)try{await dbPut('meta',{id:'stamps',value:customStamps})}catch(e){toast('소재 저장 실패: '+e.message)}toast('내 그림 소재로 등록했습니다');if(tool==='stamp')showPanel()}
-function importImage(stamp=false){$('imageInput').value='';$('imageInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const src=await readFile(f),im=await getAsset(src),c=canvas(Math.min(4096,im.width),Math.min(4096,im.width)*im.height/im.width);if(c.width*c.height>16e6)throw Error('이미지를 1600만 화소 이하로 줄여주세요');c.getContext('2d').drawImage(im,0,0,c.width,c.height);if(stamp)await registerStamp(c);else{checkpoint();const sc=Math.min(1,doc.w*.8/c.width,doc.h*.8/c.height),data=c.toDataURL();assets.set(data,c);const o={id:uid(),kind:'image',src:data,x:doc.w/2,y:doc.h/2,w:c.width*sc,h:c.height*sc};doc.objects.push(o);setTool('select');selected=o.id;changed()}}catch(err){toast(err.message)}};$('imageInput').click()}
-function readFile(f,text=false){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;text?r.readAsText(f):r.readAsDataURL(f)})}
-/* Effects: shared reflection line, independent mosaic and marbling processors. */
-function axisMid(){return{x:(axis.a.x+axis.b.x)/2,y:(axis.a.y+axis.b.y)/2}}
-function axisNormal(){const dx=axis.b.x-axis.a.x,dy=axis.b.y-axis.a.y,l=Math.hypot(dx,dy)||1;return{x:-dy/l,y:dx/l}}
-// A contact fold is not directional: normal is canonical even if the user draws B→A.
-function foldNormal(a=axis.a,b=axis.b){const dx=b.x-a.x,dy=b.y-a.y,l=Math.hypot(dx,dy)||1;let x=-dy/l,y=dx/l;if((Math.abs(x)>=Math.abs(y)?x:y)<0){x=-x;y=-y}return{x,y}}
-function reflectionMatrix(a,b){const dx=b.x-a.x,dy=b.y-a.y,l=Math.hypot(dx,dy)||1,ux=dx/l,uy=dy/l,A=2*ux*ux-1,B=2*ux*uy,D=2*uy*uy-1;return[A,B,B,D,a.x-A*a.x-B*a.y,a.y-B*a.x-D*a.y]}
-/* Contact print: one dense pigment field, pressed on BOTH faces without a direction.
-   This is a deterministic paint impression, not a physical fluid solver.
-   No blur or translucent offset copies; runtime O(width * height). */
-function decalPressPixels(input,w,h,press,spread,n,m,pixelScale=1){
- const a=input.data,count=w*h,near=new Int32Array(count),dist=new Float32Array(count);
- const pressure=clamp(press/.7,0,1),radius=(spread*(.22+.78*pressure)+pressure*2)*pixelScale,world=1/pixelScale;
- let maxAlpha=0;for(let i=3;i<a.length;i+=4)maxAlpha=Math.max(maxAlpha,a[i]);const seedAlpha=Math.max(1,maxAlpha*.9);
- for(let i=0;i<count;i++){near[i]=a[i*4+3]>=seedAlpha?i:-1;dist[i]=near[i]<0?1e9:0}
- const relax=(i,j,c)=>{if(dist[j]+c<dist[i]){dist[i]=dist[j]+c;near[i]=near[j]}};
- for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=y*w+x;if(x)relax(i,i-1,1);if(y){relax(i,i-w,1);if(x)relax(i,i-w-1,1.4142);if(x+1<w)relax(i,i-w+1,1.4142)}}
- for(let y=h-1;y>=0;y--)for(let x=w-1;x>=0;x--){const i=y*w+x;if(x+1<w)relax(i,i+1,1);if(y+1<h){relax(i,i+w,1);if(x)relax(i,i+w-1,1.4142);if(x+1<w)relax(i,i+w+1,1.4142)}}
- const out=new ImageData(w,h),b=out.data;
- for(let y=0;y<h;y++)for(let x=0;x<w;x++){
-  const side=(x+.5-m.x)*n.x+(y+.5-m.y)*n.y;
-  if(side>0)continue; // intrinsic canonical half; user-facing direction has no effect
-  const u=(x-m.x)*(-n.y)+(y-m.y)*n.x,v=side;
-  // Fold pressure drives paint along the fold and outward from the seam.
-  // Broad ripples plus fine compression lines give soft, continuous squeezed
-  // shapes (not blur, spray noise or a translated ghost copy).
-  const reachFromFold=Math.exp(-Math.abs(v)*world/(26+spread*9));
-  const longWave=Math.sin(u*world*.034+1.6*Math.sin(u*world*.013)+Math.sin(v*world*.017));
-  const fineWave=Math.sin(u*world*.105+2.2*Math.sin(v*world*.031)+.5*Math.sin(u*world*.067));
-  const tangential=pressure*(6+spread*1.25)*pixelScale*reachFromFold*(longWave+.24*fineWave);
-  const normalShift=pressure*(2+spread*.8)*pixelScale*reachFromFold*(.25+longWave*.8);
-  const sx=clamp(Math.round(x-n.y*tangential+n.x*normalShift),0,w-1);
-  const sy=clamp(Math.round(y+n.x*tangential+n.y*normalShift),0,h-1);
-  const i=sy*w+sx,j=near[i];if(j<0)continue;
-  const reach=radius*(.75+.25*Math.sin(u*world*.067+Math.sin(v*world*.036)*1.5));
-  const coverage=clamp(reach-dist[i]+.5,0,1);
-  const outAlpha=Math.max(a[i*4+3],a[j*4+3]*coverage);if(!outAlpha)continue;
-  const k=(y*w+x)*4,q=(a[i*4+3]>=a[j*4+3]*coverage?i:j)*4;
-  // Fine ridges follow the pressed pigment, with no random perforation.
-  const branch=Math.sin(u*world*.12+Math.sin(v*world*.055)*2.3+Math.sin(u*world*.033+v*world*.021));
-  const ridge=Math.pow(Math.max(0,1-Math.abs(branch)*5),2);
-  const shade=1-pressure*(.025+.11*ridge),light=pressure*ridge*12;
-  for(let c=0;c<3;c++)b[k+c]=clamp(a[q+c]*shade+light,0,255);
-  b[k+3]=outAlpha;
- }
- return out;
-}
-function buildDecal(scale=1){
- // Preview runs at reduced resolution while moving the fold; final always uses full document resolution.
- const w=Math.max(1,Math.round(doc.w*scale)),h=Math.max(1,Math.round(doc.h*scale));
- const sx=w/doc.w,sy=h/doc.h,aa={x:axis.a.x*sx,y:axis.a.y*sy},bb={x:axis.b.x*sx,y:axis.b.y*sy};
- const input=canvas(w,h),ig=input.getContext('2d',{willReadFrequently:true});ig.drawImage(board,0,0,w,h);
- const fold=canvas(w,h),fg=fold.getContext('2d',{willReadFrequently:true});fg.setTransform(...reflectionMatrix(aa,bb));fg.drawImage(input,0,0);fg.resetTransform();
- const base=ig.getImageData(0,0,w,h),other=fg.getImageData(0,0,w,h),a=base.data,b=other.data;
- // Equal, bilateral pigment contact: whichever half the paint started on has the same priority.
- for(let k=0;k<a.length;k+=4){const pa=a[k+3]/255,pb=b[k+3]/255;if(!pb)continue;
-  if(pa){const sum=pa+pb;for(let c=0;c<3;c++)a[k+c]=(a[k+c]*pa+b[k+c]*pb)/sum}
-  else for(let c=0;c<3;c++)a[k+c]=b[k+c];
-  a[k+3]=255*(pa+pb-pa*pb);
- }
- const n=foldNormal(aa,bb),m={x:(aa.x+bb.x)/2,y:(aa.y+bb.y)/2};
- const half=canvas(w,h);half.getContext('2d').putImageData(decalPressPixels(base,w,h,settings.press,settings.spread,n,m,Math.min(sx,sy)),0,0);
- const result=canvas(w,h),g=result.getContext('2d');g.drawImage(half,0,0);g.setTransform(...reflectionMatrix(aa,bb));g.drawImage(half,0,0);g.resetTransform();
- input.width=input.height=1;fold.width=fold.height=1;half.width=half.height=1;
- return result;
-}
-function decalPreviewScale(){return Math.min(1,460/Math.max(doc.w,doc.h))}
-
-let reflectionSource=null;
-function buildReflection(draft=false){if(!axis||Math.hypot(axis.b.x-axis.a.x,axis.b.y-axis.a.y)<2)return;if(settings.effect==='decal'){reflectionSource=null;preview=buildDecal(draft?decalPreviewScale():1);paint();return;}const c=canvas(doc.w,doc.h),g=c.getContext('2d'),n=axisNormal(),m=axisMid(),dx=axis.b.x-axis.a.x,dy=axis.b.y-axis.a.y,l=Math.hypot(dx,dy),u={x:dx/l,y:dy/l},far=Math.max(doc.w,doc.h)*6,sgn=-axis.dir;g.beginPath();g.moveTo(m.x-u.x*far,m.y-u.y*far);g.lineTo(m.x+u.x*far,m.y+u.y*far);g.lineTo(m.x+u.x*far+n.x*far*sgn,m.y+u.y*far+n.y*far*sgn);g.lineTo(m.x-u.x*far+n.x*far*sgn,m.y-u.y*far+n.y*far*sgn);g.closePath();g.clip();g.drawImage(board,0,0);reflectionSource=c;preview=canvas(doc.w,doc.h);const pg=preview.getContext('2d');pg.transform(...reflectionMatrix(axis.a,axis.b));pg.drawImage(c,0,0);paint()}
-async function applyReflection(){if(!preview)return;if(settings.effect==='decal')preview=buildDecal(1);checkpoint();const out=canvas(doc.w,doc.h),g=out.getContext('2d');if(settings.effect!=='decal')g.drawImage(board,0,0);if(settings.effect==='mirror'){g.globalCompositeOperation='destination-out';g.drawImage(reflectionSource,0,0);g.globalCompositeOperation='source-over'}g.drawImage(preview,0,0);await replaceWithCanvas(out);cancelEffect();changed()}
-function cancelEffect(){axis=null;preview=null;reflectionSource=null;paint()}
-function tilePath(g,x,y,size,type,angle=0,seed=1){g.save();g.translate(x,y);g.rotate(angle*Math.PI/180);g.beginPath();const r=size/2;if(type==='circle')g.arc(0,0,r,0,Math.PI*2);else if(type==='triangle'){g.moveTo(0,-r);g.lineTo(r,r);g.lineTo(-r,r);g.closePath()}else if(type==='paper'){for(let i=0;i<7;i++){const a=i*Math.PI*2/7,rr=r*(.7+.3*seeded(seed+i));g[i?'lineTo':'moveTo'](Math.cos(a)*rr,Math.sin(a)*rr)}g.closePath()}else g.rect(-r,-r,size,size);g.fill();g.restore()}
-function addTile(p){const n=settings.tileSize,c=canvas(n*1.5,n*1.5),g=c.getContext('2d');g.fillStyle=settings.color;tilePath(g,c.width/2,c.height/2,Math.max(1,n-settings.gap),settings.tile,settings.tileAngle,Date.now());const src=c.toDataURL();assets.set(src,c);doc.objects.push({id:uid(),kind:'image',src,x:p.x,y:p.y,w:c.width,h:c.height,alpha:settings.alpha});render()}
-function mosaicPalette(samples,k){if(!samples.length)return[[255,255,255]];const sorted=[...samples].sort((a,b)=>a.reduce((x,y)=>x+y)-b.reduce((x,y)=>x+y));let centers=Array.from({length:Math.min(k,sorted.length)},(_,i)=>sorted[Math.floor(i*(sorted.length-1)/Math.max(1,k-1))].slice());for(let t=0;t<7;t++){const sums=centers.map(()=>[0,0,0,0]);for(const p of samples){let best=0,d=Infinity;centers.forEach((q,i)=>{const n=p.reduce((s,v,j)=>s+(v-q[j])**2,0);if(n<d){best=i;d=n}});p.forEach((v,j)=>sums[best][j]+=v);sums[best][3]++}centers=centers.map((c,i)=>sums[i][3]?sums[i].slice(0,3).map(v=>v/sums[i][3]):c)}return centers}
-function mosaicPreview(){const source=exportCanvas(true),src=source.getContext('2d').getImageData(0,0,doc.w,doc.h).data,c=canvas(doc.w,doc.h),g=c.getContext('2d'),n=settings.tileSize;let rect={x:0,y:0,w:doc.w,h:doc.h};const o=objectById();if(o)rect={x:Math.max(0,o.x-o.w/2),y:Math.max(0,o.y-o.h/2),w:o.w,h:o.h};const tiles=[];for(let y=rect.y;y<Math.min(doc.h,rect.y+rect.h);y+=n)for(let x=rect.x;x<Math.min(doc.w,rect.x+rect.w);x+=n){let sums=[0,0,0],count=0;for(let yy=y;yy<Math.min(doc.h,y+n);yy+=Math.max(1,n/4))for(let xx=x;xx<Math.min(doc.w,x+n);xx+=Math.max(1,n/4)){const k=(Math.floor(yy)*doc.w+Math.floor(xx))*4;for(let ch=0;ch<3;ch++)sums[ch]+=src[k+ch];count++}tiles.push({x,y,rgb:sums.map(v=>v/count)})}const sample=tiles.filter((_,i)=>i%Math.max(1,Math.ceil(tiles.length/3000))===0).map(t=>t.rgb),colors=mosaicPalette(sample,settings.tileColors);g.drawImage(board,0,0);g.clearRect(rect.x,rect.y,rect.w,rect.h);g.save();g.beginPath();g.rect(rect.x,rect.y,rect.w,rect.h);g.clip();for(const t of tiles){let best=colors[0],dist=Infinity;for(const c of colors){const d=c.reduce((s,v,i)=>s+(v-t.rgb[i])**2,0);if(d<dist){dist=d;best=c}}g.fillStyle=`rgb(${best.map(Math.round).join(',')})`;tilePath(g,t.x+n/2,t.y+n/2,Math.max(1,n-settings.gap),settings.tile,settings.tileAngle,t.x+t.y)}g.restore();preview=c;axis=null;$('panel').hidden=true;paint()}
-/* Deferred marbling replay: pure, dependency-free worker body. Logical space stays 320×220. */
-function marbleWorkerMain(){
- function mapOp(o,x,y){
-  if(o.type==='drop'){const dx=x-o.x,dy=y-o.y,d=Math.hypot(dx,dy);if(d<1)return[x,y];const v=Math.sqrt(Math.max(0,d*d-o.r*o.r))/d;return[o.x+dx*v,o.y+dy*v]}
-  if(o.type==='stir'){const r=o.r||Math.sqrt(1200),d=(x-o.x)**2+(y-o.y)**2,k=Math.exp(-d/(r*r))*.85;return[x-o.dx*k,y-o.dy*k]}
-  if(o.type==='flow'){const steps=o.steps||1,dx=o.tx*.035*o.str*steps,dy=o.ty*.035*o.str*steps,eddy=o.str*steps*.013;return[x-dx-Math.sin(y*.04+o.t+Math.sin(x*.017))*eddy*Math.abs(o.tx),y-dy-Math.sin(x*.04-o.t+Math.sin(y*.015))*eddy*Math.abs(o.ty)];}
-  return[x+Math.sin(y*.12+o.t)*o.strength,y+Math.sin(x*.09-o.t)*o.strength*.65];
- }
- async function replay(data,post,yieldRows){const{ops,w,h,base}=data;let a=new Uint8ClampedArray(w*h*4),b=new Uint8ClampedArray(a.length);const sx=w/320,sy=h/220;
-   if(base?.buffer){
-    const raw=new Uint8ClampedArray(base.buffer),bw=base.w,bh=base.h;
-    if(bw===w&&bh===h){a.set(raw)}
-    else {for(let y=0;y<h;y++)for(let x=0;x<w;x++){
-      const bx=Math.min(bw-1,Math.max(0,(x+.5)*bw/w-.5)),by=Math.min(bh-1,Math.max(0,(y+.5)*bh/h-.5));
-      const xx=Math.floor(bx),yy=Math.floor(by),xr=Math.min(bw-1,xx+1),yr=Math.min(bh-1,yy+1),fx=bx-xx,fy=by-yy;
-      const i=(y*w+x)*4,j=(yy*bw+xx)*4,k=(yy*bw+xr)*4,l=(yr*bw+xx)*4,n=(yr*bw+xr)*4;
-      for(let ch=0;ch<4;ch++)a[i+ch]=raw[j+ch]*(1-fx)*(1-fy)+raw[k+ch]*fx*(1-fy)+raw[l+ch]*(1-fx)*fy+raw[n+ch]*fx*fy;
-    }}
-   }else a.fill(255);
-  for(let n=0;n<ops.length;n++){const o=ops[n];for(let y=0;y<h;y++){for(let x=0;x<w;x++){const q=mapOp(o,x/sx,y/sy),xx=Math.max(0,Math.min(w-1,q[0]*sx)),yy=Math.max(0,Math.min(h-1,q[1]*sy)),x0=Math.floor(xx),y0=Math.floor(yy),x1=Math.min(w-1,x0+1),y1=Math.min(h-1,y0+1),fx=xx-x0,fy=yy-y0,k=(y*w+x)*4,i00=(y0*w+x0)*4,i10=(y0*w+x1)*4,i01=(y1*w+x0)*4,i11=(y1*w+x1)*4;
-   const near=(Math.round(yy)*w+Math.round(xx))*4;
-   const contrast=Math.max(Math.abs(a[i00]-a[i11]),Math.abs(a[i00+1]-a[i11+1]),Math.abs(a[i00+2]-a[i11+2]),Math.abs(a[i10]-a[i01]),Math.abs(a[i10+1]-a[i01+1]),Math.abs(a[i10+2]-a[i01+2]));
-   for(let ch=0;ch<3;ch++){const bilinear=a[i00+ch]*(1-fx)*(1-fy)+a[i10+ch]*fx*(1-fy)+a[i01+ch]*(1-fx)*fy+a[i11+ch]*fx*fy;b[k+ch]=contrast>38?a[near+ch]*.68+bilinear*.32:bilinear}b[k+3]=255;
-   if(o.type==='drop'){const d=Math.hypot(x/sx-o.x,y/sy-o.y),cover=Math.max(0,Math.min(1,(o.r-d)*sx+.5));for(let ch=0;ch<3;ch++)b[k+ch]=o.rgb[ch]*cover+b[k+ch]*(1-cover)}
-  }if(yieldRows&&y%24===0)await yieldRows();}const tmp=a;a=b;b=tmp;post({progress:Math.round((n+1)/ops.length*100)});}
-  return{buffer:a.buffer,w,h};
- }
- if(typeof self!=='undefined'&&typeof document==='undefined')self.onmessage=async e=>{try{const r=await replay(e.data,v=>self.postMessage(v));self.postMessage(r,[r.buffer])}catch(e){self.postMessage({error:e.message})}};
- return{mapOp,replay};
-}
-const marbleReplay=marbleWorkerMain();
-let marbleWorker=null,marbleWorkerURL=null,marbleCancelToken=0,marbleReject=null;
-function releaseMarbleWorker(){marbleCancelToken++;if(marbleReject){const reject=marbleReject;marbleReject=null;reject(Error('렌더링 취소'))}if(marbleWorker)marbleWorker.terminate();marbleWorker=null;if(marbleWorkerURL)URL.revokeObjectURL(marbleWorkerURL);marbleWorkerURL=null}
-async function marbleRenderOutput(){if(!marble)throw Error('마블링 작업실이 닫혔습니다');const m=marble;
-  m.rendering=true;
-  if(m.compacting)await m.compacting;
-  if(m!==marble)throw Error('마블링 작업실이 닫혔습니다');
-  const quality=$('marbleQuality').value,w=quality==='auto'?Math.min(1600,Math.max(640,Math.round(doc.w*.8))):+quality,h=Math.round(w*220/320),ops=m.ops.map(o=>({...o}));
-  if(!ops.length&&!m.snapshot){m.rendering=false;return m.c}
- const token=++marbleCancelToken;$('marbleProgress').hidden=false;$('marbleApply').disabled=true;$('marbleStamp').disabled=true;
- const progress=v=>{if($('marbleProgress'))$('marbleProgress').textContent=`고해상도 렌더링 ${v.progress}% · ${w} × ${h}px`};
- const payload={ops,w,h,base:m.snapshot||null};let result;
- try{if(typeof Worker==='function'){try{marbleWorkerURL=URL.createObjectURL(new Blob(['('+marbleWorkerMain.toString()+')()'],{type:'text/javascript'}));marbleWorker=new Worker(marbleWorkerURL);result=await new Promise((resolve,reject)=>{marbleReject=reject;marbleWorker.onmessage=e=>{if(e.data.error)reject(Error(e.data.error));else if(e.data.buffer)resolve(e.data);else progress(e.data)};marbleWorker.onerror=e=>reject(Error(e.message||'Worker 실행 불가'));marbleWorker.postMessage(payload)})}catch(e){if(token!==marbleCancelToken)throw Error('렌더링 취소');if(marbleWorker)marbleWorker.terminate();marbleWorker=null;result=await marbleReplay.replay(payload,progress,async()=>{await new Promise(r=>setTimeout(r,0));if(token!==marbleCancelToken)throw Error('렌더링 취소')})}}
- else result=await marbleReplay.replay(payload,progress,async()=>{await new Promise(r=>setTimeout(r,0));if(token!==marbleCancelToken)throw Error('렌더링 취소')});
- if(token!==marbleCancelToken||marble!==m)throw Error('렌더링 취소');const c=canvas(result.w,result.h);c.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(result.buffer),result.w,result.h),0,0);return c;
- }finally{if(marble===m){m.rendering=false;if($('marbleApply'))$('marbleApply').disabled=false;if($('marbleStamp'))$('marbleStamp').disabled=false}if(token===marbleCancelToken){marbleReject=null;if(marbleWorker)marbleWorker.terminate();marbleWorker=null;if(marbleWorkerURL)URL.revokeObjectURL(marbleWorkerURL);marbleWorkerURL=null}}
-}
-// Snapshot long marbling sessions, preserving the rendered pigment instead of dropping steps.
-// A quality-matched checkpoint plus a short replay tail prevents unbounded operation logs.
-const MARBLE_COMPACT_AT=160;
-function marbleCheckpointWidth(){const quality=$('marbleQuality').value;return quality==='auto'?Math.min(1600,Math.max(640,Math.round(doc.w*.8))):+quality}
-function compactMarbleIfNeeded(){
- const m=marble;
- if(!m||m.rendering||m.compacting||m.ops.length<MARBLE_COMPACT_AT)return;
- if(m.compactFailureAt&&Date.now()-m.compactFailureAt<60000)return;
- const count=m.ops.length,ops=m.ops.slice(0,count).map(o=>({...o}));
- const w=marbleCheckpointWidth(),h=Math.round(w*220/320),base=m.snapshot||null;
- m.compacting=(async()=>{
-  let worker=null,url=null,result=null;
-  try{
-   const payload={ops,w,h,base};
-   if(typeof Worker==='function'){
-    try{
-     url=URL.createObjectURL(new Blob(['('+marbleWorkerMain.toString()+')()'],{type:'text/javascript'}));
-     worker=new Worker(url);m.compactWorker=worker;
-     result=await new Promise((resolve,reject)=>{
-      worker.onmessage=e=>{if(e.data.error)reject(Error(e.data.error));else if(e.data.buffer)resolve(e.data)};
-      worker.onerror=e=>reject(Error(e.message||'마블링 압축 실패'));
-      m.compactAbort=reject;worker.postMessage(payload);
-     });
-    }catch(e){
-     if(marble!==m)throw e;
-     // File viewers may prohibit blob workers; preserve compaction with cooperative yielding.
-     if(worker)worker.terminate();worker=null;m.compactWorker=null;m.compactAbort=null;
-     result=await marbleReplay.replay(payload,()=>{},async()=>{await new Promise(r=>setTimeout(r,0));if(marble!==m)throw Error('취소')});
-    }
-   }else{
-    result=await marbleReplay.replay(payload,()=>{},async()=>{await new Promise(r=>setTimeout(r,0));if(marble!==m)throw Error('취소')});
-   }
-   if(marble!==m)return;
-   m.snapshot={w:result.w,h:result.h,buffer:result.buffer};m.compactFailureAt=0;
-   m.ops.splice(0,count);
-   m.checkpoints=(m.checkpoints||0)+1;
-  }catch(e){if(marble===m){m.compactFailureAt=Date.now();console.warn('마블링 이력 압축 실패 · 기존 기록 유지',e)}}
-  finally{
-   if(worker)worker.terminate();if(url)URL.revokeObjectURL(url);
-   if(m.compactWorker===worker)m.compactWorker=null;m.compactAbort=null;
-  }
- })().finally(()=>{m.compacting=null;if(marble===m&&!m.rendering&&!m.compactFailureAt&&m.ops.length>=MARBLE_COMPACT_AT)setTimeout(compactMarbleIfNeeded,0)});
-}
-function marbleWarp(o){
- if(!marble||marble.rendering)return;
- const last=marble.ops.at(-1);

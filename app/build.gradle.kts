@@ -20,8 +20,8 @@ android {
         applicationId = "com.cyberart.studio"
         minSdk = 29
         targetSdk = 35
-        versionCode = 7
-        versionName = "1.0.6"
+        versionCode = 8
+        versionName = "1.0.7"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

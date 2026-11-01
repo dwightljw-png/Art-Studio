@@ -4,7 +4,7 @@ html_path = Path("app/src/main/assets/art_studio_android.html")
 html = html_path.read_text(encoding="utf-8")
 
 required = [
-    "ART STUDIO v4.0",
+    "ART STUDIO v4.0.8",
     'id="fullscreenBtn"',
     'id="saveBtn"',
     'id="exportBtn"',

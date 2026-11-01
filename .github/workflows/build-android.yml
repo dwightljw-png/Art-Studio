@@ -23,7 +23,7 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Rebuild exact ART STUDIO v4.0 HTML asset
+      - name: Rebuild exact ART STUDIO v4.0.8 HTML asset
         shell: bash
         run: |
           mkdir -p app/src/main/assets
@@ -32,7 +32,7 @@ jobs:
             cat "$f" >> app/src/main/assets/art_studio_android.html
             printf '\n' >> app/src/main/assets/art_studio_android.html
           done
-          echo 'e503e780bcce7eeae5d4f9f596997c33f0e96f776903b2e7b01702c7042ba8fe  app/src/main/assets/art_studio_android.html' | sha256sum -c -
+          echo 'db3ba6537596e6bbcda020cf640cd56b50d0e229e5f57dbc55a81e964b27b4c2  app/src/main/assets/art_studio_android.html' | sha256sum -c -
           python3 tools/patch_android_html.py
 
       - name: Set up Java 17
@@ -69,12 +69,12 @@ jobs:
       - name: Copy APK to dist
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/cyber-art-studio-v1.0.6.apk
+          cp app/build/outputs/apk/debug/app-debug.apk dist/cyber-art-studio-v1.0.7.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: cyber-art-studio-debug-apk
-          path: dist/cyber-art-studio-v1.0.6.apk
+          path: dist/cyber-art-studio-v1.0.7.apk
           if-no-files-found: error
           retention-days: 30
