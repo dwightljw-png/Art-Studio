@@ -111,7 +111,7 @@ body.kids #projectBtn::after{
   body.kids #projectBtn>.kids-button-art svg{width:15px;height:15px}
   body.kids #projectBtn::after{left:17px;right:1px;font-size:8px;letter-spacing:-.6px}
 }
-/* v4.0.8 | Correct previous title patch rather than increasing button widths.
+/* v4.0.9 | Correct previous title patch rather than increasing button widths.
    Match the ORIGINAL button geometry across modes and restore the title's
    full flex width. No drawing/canvas or event styles are touched. */
 body.kids #panel .choices button[data-val="airbrush"] .kids-option-art svg,
@@ -161,7 +161,7 @@ body.kids #panel .choices button[data-val="pastel"] .kids-option-art svg {
 </style>
 
 <style id="v4-0-8-header-final">
-/* v4.0.8 — header visual layer only.
+/* v4.0.9 — header visual layer only.
    Correct earlier inherited title restrictions and UI-switch display conflicts.
    Do not alter the button order, geometry, DOM actions, engine or artwork. */
 header #projectBtn {

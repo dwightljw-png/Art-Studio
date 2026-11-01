@@ -1,3 +1,31 @@
+  const signature=[];for(let y=0;y<10;y++)for(let x=0;x<10;x++)signature.push(data[((y*10+5)*100+(x*10+5))*4+3]>20?'1':'0');
+  signatures.push(signature.join(''));
+ }
+ assert(new Set(signatures).size>=22,'기본 스탬프가 서로 지나치게 유사');
+});
+test('4종 모자이크 타일 렌더링',()=>{for(const t of ['square','triangle','circle','paper']){const c=canvas(80,80),g=c.getContext('2d');tilePath(g,40,40,40,t);assert(g.getImageData(40,40,1,1).data[3]>0)}});
+test('투명 / 배경 출력 해상도',()=>{const c=exportCanvas(false,.5);assert(c.width===Math.round(doc.w*.5)&&c.height===Math.round(doc.h*.5));assert(exportCanvas(true).getContext('2d').getImageData(0,0,1,1).data[3]===255)});
+test('투명 캔버스 채우기: 외부 투명도 보존',()=>{const w=9,h=7,match=new Uint8ClampedArray(w*h*4),dest=new Uint8ClampedArray(w*h*4);for(let y=0;y<h;y++){const i=(y*w+4)*4;match[i+3]=255;dest[i+3]=255}const n=floodPixels(match,dest,w,h,1,2,[255,0,0],.5,0);assert(n===28);assert(dest[(2*w+1)*4]===255&&dest[(2*w+1)*4+3]===128);assert(dest[(2*w+7)*4+3]===0)});
+test('페인트통 가장자리 입력 / 전체 영역',()=>{const w=30,h=20,a=new Uint8ClampedArray(w*h*4),d=new Uint8ClampedArray(a);assert(floodPixels(a,d,w,h,w,h,[0,100,200],1,0)===w*h);assert(d[3]===255&&d.at(-1)===255)});
+test('페인트통 허용차 및 닫힌 경계',()=>{const w=5,h=5,a=new Uint8ClampedArray(w*h*4),d=new Uint8ClampedArray(a);for(let i=0;i<a.length;i+=4){a[i]=100;a[i+3]=255}for(let x=0;x<w;x++)a[(2*w+x)*4]=200;assert(floodPixels(a,d,w,h,1,0,[1,2,3],1,20)===10)});
+test('두 손가락 버퍼와 기존 경로의 픽셀 일치',()=>{const ps=[[{x:5,y:5},{x:35,y:5},{x:35,y:35},{x:5,y:35}],[{x:35,y:5},{x:5,y:5},{x:5,y:20},{x:35,y:20}]];const saved=ribbonBuffer;ribbonBuffer=null;createRibbonBuffer();ps.forEach(appendRibbonQuad);const actual=renderRibbonBuffer().getContext('2d').getImageData(0,0,50,50).data,c=canvas(doc.w,doc.h),g=c.getContext('2d');g.fillStyle=settings.color;g.globalAlpha=settings.alpha;g.beginPath();for(const points of ps){points.forEach((p,i)=>g[i?'lineTo':'moveTo'](p.x,p.y));g.closePath()}g.fill();const expected=g.getImageData(0,0,50,50).data;assert(actual.every((v,i)=>v===expected[i]));releaseRibbonBuffer();ribbonBuffer=saved});
+test('두 손가락 지우개 마스크·원본 보존·저장 검사',()=>{
+ const save=ribbonBuffer;ribbonBuffer=null;
+ try{
+  const c=canvas(doc.w,doc.h),g=c.getContext('2d');g.fillStyle='#e11d48';g.fillRect(0,0,doc.w,doc.h);
+  const x0=Math.max(1,Math.floor(doc.w*.08)),x1=Math.max(x0+2,Math.floor(doc.w*.55));
+  const y0=Math.max(1,Math.floor(doc.h*.08)),y1=Math.max(y0+2,Math.floor(doc.h*.55));
+  const xi=Math.floor((x0+x1)/2),yi=Math.floor((y0+y1)/2);
+  const xo=doc.w-2,yo=doc.h-2;
+  createRibbonBuffer('erase');appendRibbonQuad([{x:x0,y:y0},{x:x1,y:y0},{x:x1,y:y1},{x:x0,y:y1}]);
+  const preview=renderRibbonErasePreview();
+  assert(preview.getContext('2d').getImageData(xi,yi,1,1).data[3]===0,'미리보기는 해당 영역을 제거');
+  const mask=finishRibbon('erase');validateDoc({...doc,objects:[mask]});
+  const old=doc;try{doc={...doc,w:doc.w,h:doc.h};drawObject(g,mask)}finally{doc=old}
+  assert(g.getImageData(xi,yi,1,1).data[3]===0,'지운 영역이 투명해지지 않음');
+  assert(g.getImageData(xo,yo,1,1).data[3]===255,'지우개 밖 영역 손상');
+  assets.delete(mask.src);
+ }finally{releaseRibbonBuffer();ribbonBuffer=save}
 });
 test('파스텔 문지르기: 색소가 이동하고 다른 색과 섞임',()=>{
  const save={boardPixels:ctx.getImageData(0,0,80,50),size:settings.size,alpha:settings.alpha};
@@ -92,7 +120,7 @@ function setMode(mode,save){
   button.querySelector('.cy-switch-label').textContent=labels[next];
   button.setAttribute('aria-label',labels[next]+'로 전환');
   button.title=labels[next]+'로 전환';
-  document.title=mode==='cyber'?'CYBER ART STUDIO v4.0.8 · 나의 작은 작업실':
+  document.title=mode==='cyber'?'CYBER ART STUDIO v4.0.9 · 나의 작은 작업실':
                  mode==='kids'?'KIDS ART STUDIO v4.0 · 스티커 놀이터':originalTitle;
   if(save)try{localStorage.setItem(KEY,mode)}catch(_){}
   // The actual stamp selection buttons are regenerated only as UI if needed.
@@ -170,31 +198,3 @@ function buildGraffiti(){
  <g opacity=".42" transform="translate(3,-1)" stroke="#ff2bd1">${strokes}${main}</g></g>
  <g filter="url(#cyArtGlow)" stroke="#ffffff"><g filter="url(#cyArtNoise)">${strokes}${main}${thin}${scr}${ul}</g></g></g>
  </g></svg>`;
-}
-function mountGraffiti(){
- const svg=buildGraffiti();mark.innerHTML=svg;
- // Bake only once; keep SVG as fallback when data-URL canvas isn't allowed.
- try{
-  const W=1460,H=704,im=new Image();
-  im.onload=()=>{try{
-   const c=document.createElement('canvas');c.width=W;c.height=H;
-   const g=c.getContext('2d');g.drawImage(im,0,0,W,H);
-   const baked=new Image();baked.alt='';baked.decoding='async';
-   baked.onload=()=>{mark.replaceChildren(baked);c.width=c.height=1};
-   baked.src=c.toDataURL('image/png');
-  }catch(_){}};
-  im.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg.replace('<svg ',`<svg width="${W}" height="${H}" `));
- }catch(_){}
-}
-mountGraffiti();
-
-/* Track artwork presence through the original app state on meaningful actions,
-   not per brush movement. Never mutate doc, history, camera, or canvas pixels. */
-stage.addEventListener('pointerdown',()=>{touchDrawing=true;syncBlank()},{capture:true,passive:true});
-const unhold=()=>{touchDrawing=false;requestAnimationFrame(syncBlank)};
-stage.addEventListener('pointerup',unhold,{capture:true,passive:true});
-stage.addEventListener('pointercancel',unhold,{capture:true,passive:true});
-/* A normal art edit triggers the existing save-state text update. */
-const saveState=document.getElementById('saveState');
-if(saveState)new MutationObserver(syncBlank).observe(saveState,{childList:true,subtree:true,characterData:true});
-const modal=document.getElementById('modal');

@@ -1,3 +1,31 @@
+}
+function mountGraffiti(){
+ const svg=buildGraffiti();mark.innerHTML=svg;
+ // Bake only once; keep SVG as fallback when data-URL canvas isn't allowed.
+ try{
+  const W=1460,H=704,im=new Image();
+  im.onload=()=>{try{
+   const c=document.createElement('canvas');c.width=W;c.height=H;
+   const g=c.getContext('2d');g.drawImage(im,0,0,W,H);
+   const baked=new Image();baked.alt='';baked.decoding='async';
+   baked.onload=()=>{mark.replaceChildren(baked);c.width=c.height=1};
+   baked.src=c.toDataURL('image/png');
+  }catch(_){}};
+  im.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg.replace('<svg ',`<svg width="${W}" height="${H}" `));
+ }catch(_){}
+}
+mountGraffiti();
+
+/* Track artwork presence through the original app state on meaningful actions,
+   not per brush movement. Never mutate doc, history, camera, or canvas pixels. */
+stage.addEventListener('pointerdown',()=>{touchDrawing=true;syncBlank()},{capture:true,passive:true});
+const unhold=()=>{touchDrawing=false;requestAnimationFrame(syncBlank)};
+stage.addEventListener('pointerup',unhold,{capture:true,passive:true});
+stage.addEventListener('pointercancel',unhold,{capture:true,passive:true});
+/* A normal art edit triggers the existing save-state text update. */
+const saveState=document.getElementById('saveState');
+if(saveState)new MutationObserver(syncBlank).observe(saveState,{childList:true,subtree:true,characterData:true});
+const modal=document.getElementById('modal');
 if(modal)new MutationObserver(()=>requestAnimationFrame(syncBlank)).observe(modal,{attributes:true,attributeFilter:['open']});
 const buttons=['projectBtn','undoBtn','redoBtn','saveBtn','exportBtn','printBtn'];
 buttons.forEach(id=>document.getElementById(id)?.addEventListener('click',()=>requestAnimationFrame(syncBlank)));
