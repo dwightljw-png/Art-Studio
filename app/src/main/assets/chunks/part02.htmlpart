@@ -1,0 +1,200 @@
+ outline:1px solid #00e8ff;box-shadow:0 0 9px rgba(0,232,255,.25)}
+body.cyber input[type=checkbox],body.cyber input[type=range]{accent-color:#00e8ff}
+body.cyber input[type=color]{background:#091225;border-color:#2b4265}
+/* Buttons styled, swatches excluded: their actual RGB colors are untouched. */
+body.cyber :is(header,nav,#panel,#marbleDock,#viewbar,#context,dialog,#bottom) button:not(.swatch):not(.color-chip){
+ --c:var(--cy-accent,#00e8ff);position:relative;isolation:isolate;overflow:hidden;
+ background:linear-gradient(180deg,color-mix(in srgb,var(--c) 11%,#0c1524),#050913 74%);
+ border-color:color-mix(in srgb,var(--c) 78%,#1f3553);
+ border-radius:3px;color:#f7fbff;
+ text-shadow:0 1px 1px #030712,0 0 7px color-mix(in srgb,var(--c) 40%,transparent);
+ box-shadow:0 0 0 1px color-mix(in srgb,var(--c) 20%,transparent),0 0 10px color-mix(in srgb,var(--c) 18%,transparent),inset 0 0 8px color-mix(in srgb,var(--c) 9%,transparent);
+}
+body.cyber :is(header,nav,#panel,#marbleDock,#viewbar,#context,dialog,#bottom) button:not(.swatch):not(.color-chip):hover:not(:disabled){
+ background:linear-gradient(180deg,color-mix(in srgb,var(--c) 18%,#10192a),#050913 78%);
+ box-shadow:0 0 0 1px color-mix(in srgb,var(--c) 26%,transparent),0 0 14px color-mix(in srgb,var(--c) 24%,transparent),inset 0 0 10px color-mix(in srgb,var(--c) 12%,transparent);
+}
+body.cyber :is(header,nav,#panel,#marbleDock,#viewbar,#context,dialog,#bottom) button:not(.swatch):not(.color-chip):is(.active,.primary,.cy-hot,#cyberToggle.cy-on){
+ background:linear-gradient(180deg,color-mix(in srgb,var(--c) 32%,#122033),color-mix(in srgb,var(--c) 16%,#050913));
+ border-color:var(--c);
+ color:#fff;
+ box-shadow:0 0 0 1px color-mix(in srgb,var(--c) 40%,transparent),0 0 18px color-mix(in srgb,var(--c) 42%,transparent),0 0 28px color-mix(in srgb,var(--c) 22%,transparent),inset 0 0 14px color-mix(in srgb,var(--c) 18%,transparent);
+ text-shadow:0 0 1px #fff,0 0 11px color-mix(in srgb,var(--c) 68%,transparent);
+}
+/* Neon tube border. Apply lightly to normal buttons and brighter when ON. */
+body.cyber :is(header,nav,#panel,#marbleDock,#viewbar,#context,dialog,#bottom) button:not(.swatch):not(.color-chip)::before{
+ content:'';position:absolute;inset:-1px;pointer-events:none;opacity:.72;
+ border:1px solid color-mix(in srgb,var(--c,#00e8ff) 90%,white 0%);border-radius:inherit;
+ box-shadow:0 0 4px var(--c,#00e8ff),0 0 11px color-mix(in srgb,var(--c,#00e8ff) 58%,transparent),inset 0 0 7px color-mix(in srgb,var(--c,#00e8ff) 20%,transparent);
+ animation:var(--cy-flick,cyArtFlickA) var(--cy-speed,9.2s) steps(1,end) var(--cy-delay,0s) infinite;
+}
+body.cyber :is(header,nav,#panel,#marbleDock,#viewbar,#context,dialog,#bottom) button:not(.swatch):not(.color-chip):is(.active,.primary,.cy-hot,#cyberToggle.cy-on)::before{opacity:1}
+@keyframes cyArtFlickA{0%,13%,41%,43%,72%,75%,100%{opacity:.9}14%,42%,73%{opacity:.22}15%,42.8%,74%{opacity:1}}
+@keyframes cyArtFlickB{0%,28%,30%,58%,61%,100%{opacity:.92}29%,59%{opacity:.22}29.8%,60%{opacity:.97}}
+body.cyber #projectBtn{--cy-accent:#00e8ff}
+body.cyber #cyberToggle{--cy-accent:#ff2bd1;--cy-speed:8.8s;--cy-delay:-4.1s}
+body.cyber #fullscreenBtn{--cy-accent:#35ff9a;--cy-speed:10.9s;--cy-delay:-3.7s}
+body.cyber #undoBtn{--cy-accent:#00e8ff;--cy-speed:8.7s;--cy-delay:-2.3s}
+body.cyber #redoBtn{--cy-accent:#ff2bd1;--cy-speed:10.4s;--cy-delay:-1.2s}
+body.cyber #saveBtn{--cy-accent:#35ff9a;--cy-speed:9.8s;--cy-delay:-1.4s}
+body.cyber #exportBtn{--cy-accent:#ffe600;--cy-speed:11.5s;--cy-delay:-5.1s}
+body.cyber #printBtn{--cy-accent:#ffe600;--cy-speed:12.4s;--cy-delay:-5.6s}
+body.cyber #settingsBtn{--cy-accent:#ff2bd1;--cy-speed:10.7s;--cy-delay:-2.2s}
+body.cyber nav button[data-tool=draw],body.cyber nav button[data-tool=select]{--cy-accent:#00e8ff}
+body.cyber nav button[data-tool=shape],body.cyber nav button[data-tool=stamp]{--cy-accent:#35ff9a}
+body.cyber nav button[data-tool=effects]{--cy-accent:#ffe600}
+body.cyber nav button[data-tool=fill],body.cyber nav button[data-tool=eraser]{--cy-accent:#ff2bd1}
+body.cyber #panel .choices button:nth-child(4n+1){--cy-accent:#00e8ff}
+body.cyber #panel .choices button:nth-child(4n+2){--cy-accent:#35ff9a}
+body.cyber #panel .choices button:nth-child(4n+3){--cy-accent:#ff2bd1}
+body.cyber #panel .choices button:nth-child(4n){--cy-accent:#ffe600}
+body.cyber #moreColorsBtn{--cy-accent:#ffe600}
+body.cyber #optionsBtn{--cy-accent:#ff2bd1}
+body.cyber #marbleApply,body.cyber #outputGo{--cy-accent:#35ff9a}
+body.cyber #marbleCancel,body.cyber #marbleClear{--cy-accent:#ff2bd1}
+body.cyber #viewbar button{--cy-accent:#00e8ff}
+body.cyber header button:nth-of-type(1){--cy-accent:#00e8ff}
+body.cyber header button:nth-of-type(2){--cy-accent:#ff2bd1}
+body.cyber header button:nth-of-type(3){--cy-accent:#00e8ff}
+body.cyber header button:nth-of-type(4){--cy-accent:#35ff9a}
+body.cyber header button:nth-of-type(5){--cy-accent:#00e8ff}
+body.cyber header button:nth-of-type(6){--cy-accent:#35ff9a}
+body.cyber header button:nth-of-type(7){--cy-accent:#ff2bd1}
+body.cyber header button:nth-of-type(8){--cy-accent:#ffe600}
+body.cyber nav button:nth-child(4n+1){--cy-accent:#00e8ff}
+body.cyber nav button:nth-child(4n+2){--cy-accent:#35ff9a}
+body.cyber nav button:nth-child(4n+3){--cy-accent:#ff2bd1}
+body.cyber nav button:nth-child(4n){--cy-accent:#ffe600}
+body.cyber :is(header,nav,#panel,#marbleDock,#viewbar,#context,dialog,#bottom) button:disabled{opacity:.40!important;filter:none}
+body.cyber #colorControls.is-eraser{filter:grayscale(1);opacity:.4} /* original inactive behavior */
+body.cyber .swatch.active i{outline-color:#00e8ff}
+body.cyber .color-chip,body.cyber .swatch{background:transparent;color:#eaf3ff}
+body.cyber #toast{background:#050a15;color:#fff;border:1px solid #00e8ff;box-shadow:0 0 14px rgba(0,232,255,.32)}
+body.cyber #runtimeAlert{background:#261405;color:#fff1c8;border-color:#ffe600} /* never suppress startup errors */
+/* Actual preview and marbling canvas should remain color-accurate. */
+body.cyber #marbleCanvas,body.cyber #exportPreview{filter:none!important}
+body.cyber .work img{filter:none!important}
+@media(max-width:480px){body.cyber .cy-neon-title{font-size:10px;letter-spacing:0}body.cyber .cy-art-sub{font-size:7px;letter-spacing:.07em}body.cyber .cy-art-mark{top:8%;width:min(72%,360px)}body.cyber #stage.cy-art-empty .cy-art-mark{padding:0 2px}}
+@media(prefers-reduced-motion:reduce){body.cyber .cy-bad,body.cyber button::before,body.cyber .cy-art-logo img{animation:none!important}}
+}
+@media print{#cyberToggle,.cy-art-mark{display:none!important}}
+
+/* v2.1 mobile header: preserve one-tap primary actions; secondary actions in overflow. */
+#headerMoreBtn{display:none;flex:0 0 auto}
+#headerMoreMenu[hidden]{display:none!important}
+#headerMoreMenu{position:fixed;right:8px;top:62px;z-index:50;background:#fff;
+  color:#0f172a;border:1px solid #e2e8f0;border-radius:12px;
+  padding:7px;box-shadow:0 10px 28px rgba(15,23,42,.22);min-width:172px}
+#headerMoreMenu button{display:flex;width:100%;justify-content:flex-start;
+  min-height:46px;gap:12px;padding:10px 12px;border-radius:8px}
+#headerMoreMenu button svg{height:20px;width:20px}
+body.cyber #headerMoreMenu{background:#080d1a;color:#eaf3ff;border-color:#28466c}
+body.cyber #headerMoreMenu button{color:#eaf3ff;border:1px solid transparent}
+body.cyber #headerMoreMenu button:hover{background:#11243a;border-color:#00e8ff}
+@media(max-width:955px){
+ header{overflow:hidden!important;gap:0;justify-content:space-between}
+ header #exportBtn,header #printBtn,header #settingsBtn,header #saveState,header .divider{display:none!important}
+ header #headerMoreBtn{display:inline-flex!important}
+ header .spacer{display:none}
+ header>button:not(#projectBtn){height:44px;min-height:44px;min-width:44px;width:44px;flex:0 0 44px;padding:6px}
+ header #projectBtn{width:122px;min-width:90px;flex:1 1 auto;max-width:156px;overflow:hidden}
+ header .brand{font-size:12px;letter-spacing:.3px}
+ body.cyber header .cy-neon-title{font-size:11px!important;letter-spacing:0!important}
+ body.cyber #cyberToggle{height:44px;min-height:44px;min-width:44px;width:44px}
+ body.cyber #cyberToggle .cy-switch-label{display:none!important}
+ #headerMoreMenu{top:60px}
+}
+@media(min-width:956px) and (max-width:1024px){header .divider{margin:0 3px}}
+@media(max-width:480px){
+ body.cyber header .cy-neon-title{font-size:0!important;letter-spacing:0!important}
+ body.cyber header .cy-neon-title::after{content:'CYBER';font-size:12px;letter-spacing:.05em}
+}
+@media(max-width:390px){
+ header #projectBtn{max-width:96px;padding:3px!important}
+ header>button:not(#projectBtn){min-width:42px;width:42px;flex-basis:42px}
+ body.cyber #cyberToggle{min-width:42px;width:42px}
+}
+@media(max-width:350px){
+ header #redoBtn{display:none!important}
+ header #projectBtn{max-width:88px}
+ #headerMoreMenu .more-redo{display:flex}
+}
+@media(min-width:351px){#headerMoreMenu .more-redo{display:none}}
+/* Artwork watermark is visible only on truly blank canvases, never over work. */
+body.cyber #stage:not(.cy-art-empty) .cy-art-mark{opacity:0!important;visibility:hidden!important}
+/* Neon tubes keep a static glow; flicker only selected or processing buttons. */
+body.cyber :is(header,nav,#panel,#marbleDock,#viewbar,#context,dialog,#bottom) button:not(.swatch):not(.color-chip)::before{
+ animation:none!important;opacity:.7
+}
+body.cyber :is(header,nav,#panel,#marbleDock,#viewbar,#context,dialog,#bottom) button:not(.swatch):not(.color-chip):is(.active,.primary,.cy-hot,#cyberToggle.cy-on)::before{
+ animation:cyArtFlickA 12s steps(1,end) infinite!important;opacity:1
+}
+@media(prefers-reduced-motion:reduce){body.cyber :is(header,nav,#panel,#marbleDock,#viewbar,#context,dialog,#bottom) button::before{animation:none!important}}
+
+/* v2.0: repair header compression without changing underlying actions. */
+@media (max-width:955px){
+ header{justify-content:flex-start!important;gap:6px!important;overflow:hidden!important}
+ header #projectBtn{width:auto;flex:0 1 186px;max-width:186px;min-width:112px;overflow:hidden;justify-content:flex-start!important}
+ header .brand{max-width:100%;overflow:hidden;text-overflow:ellipsis;letter-spacing:.25px!important}
+ header .label{display:none!important} /* 44px icon buttons must never retain long text */
+ header>button:not(#projectBtn){min-width:44px;width:44px;flex:0 0 44px;padding:7px!important;overflow:hidden;gap:0}
+ header .spacer{display:none!important}
+ header #headerMoreBtn{margin-left:auto;display:inline-flex!important}
+ header #cyberToggle{min-height:44px;height:44px;width:48px!important;min-width:48px!important;flex:0 0 48px!important;padding:5px!important}
+ header #cyberToggle .cy-switch-label{display:none!important}
+ header #cyberToggle .cy-switch-symbol{font:800 12px/1 system-ui,sans-serif!important;letter-spacing:.02em}
+}
+@media (max-width:480px){
+ header{gap:3px!important;padding:4px 4px!important}
+ header #projectBtn{flex:1 1 auto;min-width:72px;max-width:115px;width:auto}
+ header>button:not(#projectBtn){min-width:42px;width:42px;flex:0 0 42px}
+ header #cyberToggle{width:42px!important;min-width:42px!important;flex:0 0 42px!important}
+ header .brand{font-size:11px!important;letter-spacing:0!important}
+ body.cyber header .cy-neon-title::after{content:'CYBER';font-size:11px;letter-spacing:0}
+ header .brand small{display:block!important;font-size:0!important;line-height:1.2!important;margin-top:2px;color:#64748b}
+ header .brand small::after{content:'v3.0';font-size:9px;font-weight:600;letter-spacing:0}
+ body.cyber header .brand small{color:#ffb8ed}
+}
+@media (max-width:350px){
+ header{gap:2px!important}
+ header #projectBtn{max-width:75px;min-width:62px}
+ header>button:not(#projectBtn){min-width:40px;width:40px;flex:0 0 40px}
+ header #cyberToggle{width:40px!important;min-width:40px!important;flex:0 0 40px!important}
+}
+#cyberToggle .cy-switch-symbol{display:inline-block;min-width:18px;text-align:center;font-size:13px;line-height:1;font-weight:850;letter-spacing:0}
+
+/* v2.0.1: button-specific neon accents were masked by the common --c declaration.
+   Present the same four original accent hues as brightly lit tubes, not solid rainbow fills.
+   Apply only to main actions; leave palettes, canvas, export, panel controls intact. */
+body.cyber :is(header,nav) button:not(.active):not(.primary):not(.cy-hot):not(#cyberToggle.cy-on):not(:disabled){
+  color:var(--c);
+  text-shadow:0 0 7px color-mix(in srgb,var(--c) 75%,transparent);
+  border-color:var(--c);
+  box-shadow:0 0 0 1px color-mix(in srgb,var(--c) 37%,transparent),
+    0 0 12px color-mix(in srgb,var(--c) 39%,transparent),
+    inset 0 0 9px color-mix(in srgb,var(--c) 13%,transparent);
+}
+body.cyber :is(header,nav) button:not(.active):not(.primary):not(.cy-hot):not(#cyberToggle.cy-on):not(:disabled)::before{opacity:.88}
+/* The earlier CYBER apps placed the ◢/◧ glyph ahead of the mode label. */
+#cyberToggle .cy-switch-symbol{flex:none;min-width:16px}
+/* Tablet header has room to show the ◢ symbol AND its mode label. Keep phone's compact icon. */
+@media(min-width:600px) and (max-width:955px){
+ header #cyberToggle{width:106px!important;min-width:106px!important;flex:0 0 106px!important;gap:5px!important}
+ body header #cyberToggle .cy-switch-label, body.cyber header #cyberToggle .cy-switch-label{display:inline!important;font-size:10px!important}
+}
+/* Keep the graffiti behind the paper, not composited onto or above the art. */
+body.cyber #stage .cy-art-mark{z-index:0!important}
+body.cyber #stage #view{z-index:1}
+body.cyber #stage.cy-art-working .cy-art-mark,body.cyber #stage:not(.cy-art-empty) .cy-art-mark{visibility:hidden!important;opacity:0!important}
+
+/* v2.0.3 · WATERCOLOUR ATELIER (standard mode only)
+   The v2.0.1 application engine, original geometry, controls, sizes and output
+   paths are untouched. All artwork below is decorative, pre-rendered bitmaps.
+   Do not set `position`, width, height, flex, padding, gap, font-size on real UI. */
+body:not(.cyber){
+ --bg:#eaf7f6;--panel:#f8fdfc;--line:#bcdadf;--blue:#398ca6;
+ --text:#375a67;--muted:#70949f;
+ background:#eaf7f6;
+}
+body:not(.cyber) header{
+ background:#f4fbfa url("data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAUDBAQEAwUEBAQFBQUGBwwIBwcHBw8LCwkMEQ8SEhEPERETFhwXExQaFRERGCEYGh0dHx8fExciJCIeJBweHx7/2wBDAQUFBQcGBw4ICA4eFBEUHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh7/wAARCACRBQADAREAAhEBAxEB/8QAGwAAAwEBAQEBAAAAAAAAAAAAAAECAwQFBgj/xAArEAACAgICAgICAgEFAQEAAAAAAQIRAyESMUFRBCITYTJxFAUjM0KBUnL/xAAZAQEBAQEBAQAAAAAAAAAAAAAAAQIDBAX/xAAiEQEBAQEBAQEAAgMBAQEAAAAAARECITESA1ETQWEiMnH/2gAMAwEAAhEDEQA/AP0n8WKw3uz2devkcT8ub/UMcc0lK+jfFxz/AJJ+mnwEsabvonfq/wAcw/lZH8lXVcRzPyvV/aPjVlTjN8a9i+M8e/XN8z46WWNO9m+evGO+MrpnBNQSZnW7Pjt/BFcGpJnPXb8/Gn+qOEsCXJXRON1r+XLHmfEwRcm3JI69dPNxzrqyQjPE48l0Ylyutmx53xIrBnlb8nXr2OHE/Nd+bMpJNbOcjt10jG1mi7dUW+JP/TnzYnmlT1RqXHO8/pt8WEfj6u7M9X9N8ScOqT51+zPx0t0ZcTgv7Eul5xzpLBK+7NfXP/5reTWTi76M/HS+uv475Lfgx06c+tci5xf6JPGr64o5JJyjxOmOU6q8GPg2/ZLdXmY0nC/JJVsOK4g+LjImLK0g3RmtylxfIqZ6ub1Rlq1i6i+zTHxafJEX6SyVYw1k5cpWVjdax20yN/Xbh6RiukdKf1MusJugVAQANBBQDugpoKcpATJhCQA2AmEoQWABroAAAABgAAEANJgSwgQFIKYUmAwlAUgCwGC+kAdgOwlIAQUIAYDitgUw0HoIlhC8gAB5CAHw46YWKiGlRWwrRvQENWwKugG30AXYBLYC7AHKgCwBaAGAUAdADegOaf8ANlVIQMqqiiIGAVYVJVJqy6EgGRDGhIAKoACVDe0BCfYolStmsVrF6MVKUlaLKRzZZbo20V0EaJ2iDNyrRcUY492KU46YqE9vQCjDtDV1H41GXfZd01tGCjB77M6jn47ZvWkqDTuhaLit2yI05WqJhifx3sumplByaGmqlFV2NGU1yLPFVgXGxSrUuTIi1FSWmTcRnw7surrNyt0y4qsaVbFGii3siNIx5IzuIiWPiy6urtpUtkQm+H/pQtNN2BlP+WzUaaQSfkzUrogtGai4olQIAkhpqEuJfoS+4+D5bDOdO0z12Pj82tvjYY5m7mZ6uNcc/ptlw48a/wBuabMy2ul4k+M8TadTjSLWef8AqPk48eVrjPhRebYz3J0yeKcpJbf7NbGPzarLhy4pR7pknUq9c2OjJNfHjFKXLkZk10t/Jr4yzrk8g/WH4/Tnz4vx6U6NS6x1ziMXNXtstSa5fk5JKdRT2akcur6vDOeKSUr+ws1ZbHo/hhxUoy7OWvR+J9bLHCWNptJmdut5LHG8DWS4tyOmuN4uu3EuSTeqOddp6uWaMoNV0Pyv615+pyfJ9HT44fa1ww/Jrk0vaZm3GuZr0IdUjm7w3J1SQxdRB93EtZlPHLbtEsWVcuPakFuKx/Yl8J6L4vQPioNslWU2/QWoyWyxmpnDSGpYqKaVeyVYTxNbGn5xNO6oqNIR3ZGpHVhlejFjc6dUZKjOOkqZO2FAAEigoCUJWwptUAgAIAqX2BLklJR3srO5Tsi6YAAADYCsIaYWCwGFFhCYCbBaSCRaDRgAAAmDCDIC6dg0WFKN27qvFBFBSYQdhQgGBIFXQU5BEtgMBBAFMIfHQU1oNGQUnRQ1sKYQroKOQAnQFWgIfYFxSSAErAXQAtgK9gKWkBhkW7KIYArAq2gHaoKXKiiWVQiVFJaBSIBFCACqbIhAHgDNs0pRVMDVdGUDYGOSCbs1KrNuv2UGOadiwpJJvsKp17CKiri7IIxpxbbLVpJtvqgKljSV2NTWc5vosi4nl6QxW0JXHaozYywyXKdI1FbxjwgTdRm8j5UXFxcpJK0TExm7n+i/GjSTXQRnbvRVOHm9CjX464pu7M9JU5MlvRZDEuP5O1RdxT4U1RNRvaUVRlB+StIYYlSlu12XFLk8f7sZqfUt8iqTXBa2Pp9S1ze9D4rSMOLWxuprfG9GLEapoiG3oiIK0HtBCj9S1XymXPKqjDs9cj4t6qvjf7euX8iderx4rNjfxpqak5chL+vF65/F1XyPkTyQShjJOca67tnjikpOabbRtxvrp/zXgS+lmfxrp/l/LfD/AKgvkxcZRozf4/y3z/N+/C/xOVyUuQ/Sf499LHKWNOt0L6S45nL/ACJvk+NG/jnv6vrf40oJOLaM9a3xYyz41CakldmpWeplLOnlUaj0J4nX/peNzSXZKs11YYcu3VmLXXmOnFi/Am65WZt1uc/kcYyTpj4ZrhzXBunZ0nrj14xUJSaZdZx2/GUV5oxXbiR2Y1FJ07MV1mBTUJV3YzU3DzuknFWIvX/HNmztfVLs1I59dnixt/ZyYtJy6cMtNGK6SpV8uio1bpUZa3FY42xq42jivwTWpy1WGLXRnWvwF8eI/S/g3i0TSxlLCr6NaxeUvHT0NTGkIJdE1rMaIjUMKXkIpbIsMKaQFJUAgF0AmAdgDQSkwJCYYU0ArBpSkC1ny2VjVxlZGpVhdAUNhBYCYKQZNMNT07CyhMFOwEE0AJhCugfC5lTTTsjQUgh2FtNMGiwaaCmEIGm2FROfGvq3YS3FpBVcQQKIUIGHyChsBXYAyC4lDsBNAS3sC49ALthRJgCdBFc60FNOgABSQA1oDOUbAzcChNUFJgLyUDASAKCqIhVYBJFCAL2VQQABIqMcvaosUd0BV8UT6EnyZfgc48Vtkl1GElx63ZppnKLj15KKx4203YtLSjF8vs6GjoilXZlEym7qhgbSAjIr8lEtFU4RrZKVdckT4iK4voqr5WqCMpQ4vWy6pO0A42A/0ANRj62QROK8MsoMcnFNC+lXjx27YtLVyqiIiDau0KtPoDSGNd2S1NO0BlkW9Fiw4q0EJfW7ClGPNt9F3BrjTkZqNVCiaaaQDvwAJEqaZEFIurr5j4ypNSh2erp8rgpfGUJ8r8j9JeMutuEckfu6ozuN5v1j/kQ+PLgkpWa/Osfuc+G8GOb5zfG9j9WeL+JfaawYclqWRfofqw/HNc2XG8E1GK0/JqXXO8/mvU+I8eLC7km2jj1tr08WcxhHi3LjuzTExhj+Ljbk5y4mr1WJ/HP9ssfxbyfSV7NXpifx7fG3yU8UYxq2zPPrff8A5GCOWKtwuxbDmWNsEHKclKDSXmtGbW+Z766MWKMpd9GbXSSVfyc3CFRVk5mr31kc/wAZtxm2b6c+HLHlPI7WrN/HKba7MXx1KDfk53rHacbGcMMudPSNazObrrhi4R07sxuuk5xKxyvZdTFpyiqqzLW2MJYm520a1zs2tpqkkZbq4JRJWp41VNaI0idp9FjNb/GjLtrRK3y7oJUc66xVaI0EmFD2EYzasrFqC4zqoIi4vjYawcSaSFWyoqKIuBhQAwEAwJCQBdAAEIHwrAaYTUzYKh7KlJxroJgjphI2TI2GwpOQTSsAv9hCUrKaSYSKTsjUO6CnYNCYPphUyDN9RJlSlaYRX8QvwJgikiBotUyLIEBQAEKw0YQBdNOgCMvYNPkgupvYNVyVA1PbAoBuVdAJSAbkDQn7BFp0FDafQVNX2AU2Aq2EXdAONBVKgBSAiUqAl0gM5MozZVC2AnoB+AHEaKeyInoKTYCKAqgAIheCqlxsaE1TKG42rJqIj3vRVLPK6SYkIcIrjsUElaIM8Om7NUpZYcnfQlxYIRpdilXB3qiVCemUOXiiBSTbQD0umAlJxYwN0+wInrosWFCTb2hYWDJXgQhdreiiVke0i4qW77YDS8rYF7lWuiI0b0ZREm/KKq4P67RESouT2X4rRSSVNkRCab7Kp0mESnxkFPJsQggxUbxfHoz9Ft2RD0wChpoQpQRC6KryIY4tNtVR2teCTXJmm5ZFFqkjcmRy6u1H+oprGvxbdeBx99T+X544PhY1ly3mlxpnTq5PHHjnb67PnSjJRjCXRjl1/ksvw/ifHhkfNzf1HXWLxxL61eTFmnwk0uOiZY1+p1crKeDgnWXnfRZ0xeM/2jDzxxk2i31OdjHFLJ8lyu0kW5yzLe0xzy+PkSjsv5/STr8105cuTNODlGkZkkb66vVjvz55Rxx/HC9bOU5/t367snicOdZE1Kky3nE5708TjjnV/wAuhfSeVn8rJGHTtl5id9YxWSaWl2XGP1XT8aNq5qjNdOZ/brwJK6MV158W4xk9gyUShXQ0sS2/QQQd3y0KS/2UtvopVOMZreqIuaztdJlZXBcFZL6s8aYoub2iXxqeu/HBKKRiusjRR9EaUiLAtBU5NIRmufJ1ZpixnBuT2WsT1vBGa6RrRGsJqgYkAAAGEKwCwoAKGoGAMQpA+pYRKKQN0E0m2DQRRpeSniX2GVx6IsK7KfSb2Eo5VoGpsIF1oBxlTBrSl2R0xMpNBm0ov2ypFxYai0RqIm6DNZNtP2Vi00rBikGlJEMOqKuKRFNBowiWnTSBTSpLyAP29ACpq0AwlIAsINBQgBhTQDcgJuwGwEA7BFJt9hpaVBTqwCTrQCeot9gS5aTCFGWwNY9BSYETdsCJMolsBSASRVFADIKj0ED0BL2wBlxRQCFKBFBQEDCJasqk2xgjI3RYMl3sqtOWtExBDfYoOKd14JoaT6ooJR1oSiUqKJlRAKdDAZJyrosgzivLKo5tvSGGG233oAjImGBzT6GCYJ3bKFkb6ehCFBKJbdU+MX5JovDGrslSrS4vQRUEnslCyK6EEzbdJFixpH+JKjLIt70WLERTso1hElRUoWAuGhq6UI29i0axrqzKNI9EqUKgpp6FQkAwBsg85fjljUk2k/Z19ePzHLnwp24mpXPrlj8eLqSas10xxHD8zA3kvH1e6OnN89ce+ffFx+OklwdvyT9NTj+mefJL4rqP/Ysn6Z6t4ZY4825Nu2WsSa6PjOcZVPr9k6dObd9d+XHygmtnKV3vOxhixSxxk4rs1brHPNjglhm87m0qR02Y4Xm63x5cmSSi41RLJG51a61nlgXGUbUvZj866fu8kscXJSg7vsafmf6dixxjBWzGuv5c+X40ZyuzU6xi/wAcqcupRjBXXYiX/jt445xVumjHsdslioKK1ZCKkkmqEWnKfFIYW4LQENcnZdZxVqtkVll5SVRdbNRm+/FwxVujNrU5dGLFKe5aM246czXTDFwM61JjaPRGlxIoToAsKjJtCJWEo2VizRGNFJGsUZbaRCpewVIQdAMBMKTCFsrJ7IunYUWEIAYgid19Um/2VmlQJBJIi0tlRMghBFJ6DRrrQVmm70GFJMKQRSiq2FxN8egnxLbbCWmsl6GL+j5hdFXsGHGQJVqTCylMRKmQSpVhPVxfoNRXIYuqTsi6aYDQWGFMACk6fYZoWkFAQpMFpFDIgCxQCsKEgBaAABbCHxYail+wNIsKdhSkrAUXQSssibdlZOBFaqq2FDa8BWUyiHKwCwEwFeyqGyAStlGiiRDlGwMpRaKpAADSAT7EIdBSKABNjBLdAROVlgiaLCFG49BW0FezNRb10RCKoYGWRpFgyrfZpUSlvQVcZTlVrRMiHnVpcRCDFFRVvsWlE05D4CGO7FpayknBmvql+SXoYK/5FsnxCcGy6q4wJqa1ikzKKkkugCKaQFKPLsm4IcHZdNVxaRNGWS5Pa6NRVxgmkTUaqKS0Z1A4llVEm/RQpOgCKYFq0QWkTU060AJMBPsAKrzZQhJeEl6N68VkqYu3xjsqf8i/wRhF/sn61fzjl/x5R5cVdm/05/ixz4MU8UpOuzVsrnzzYeT4+L5Hb2iTq8reJ05ZYHDNFJas3+tjleMrr+XHEoR5OmY5117kxmvkvGlGO7NfnWf8mNMeXLVSVJkyLOr/ALGXFq4bsSl5/pljhJNtqi2syVPyPyZGlXRZkTrarB+TDJJK7Jcq87y7M35JRTSOcx261mpzcXSNZGdo+D9nLkOz+Nq4Nz+pNaz1uoKNWZ1vMU061sgzfKXaKz7UOUm9FTVTyuNJExb0pPkF+tcUU2S1qSOzHiVGLXSctoRoy3JjSCT7JrWCaS6BWUpvwXGLSjJ3sGtYuyNiSBUOJWQlRA0FUmFSwhbAAmmFJ123QNDAQTAABcASwWMSE2FBUIgKQRL0U+F32D6KSIZhUgYTaS0VEwtPoEW2FpV5CFybCbpQrdggSTbBD4R7B+YfELgrTsDNOmGZVSm9UC9G5BbTj0A0rCxMnxegluCDYIsNYqLsixSYU7GLpOVBnS5A0cgtpp2ElMBNWFwJUENBTAAo6AaYAwhMCooKewokAk6BquVA0ubBpWBUN9gOSp6Cm+gEBlNtlVNFA/0QSyqCIDTSodk1G0dmUVUU7rbAlxvsDOcPRdVmtFU7GII7YGlERE0l0WLEt0gMXJpm8aw5NNERMVbAbhfY0FdAWlXRA26GCZyS6KMnOTZcMLIk/OxFhcVWxprB3y0aV04nLjtGazUTlxehIuJbclb0UEMjehYY1xtU9kqU+HNOxuGsnjd6Lq6qMGhaKil5MoE3T0ULHbYq1o99EQpSfSGAjNjBtHZmoptUMMZcbZpTjSfG9sCkQGiDOba6NCU7ewLTIGr8gUmMQ4tkDTAJUAJCjw8U5z0d7JHzuba2wr8btGb63z42lNSWiZjduphkdNMWMyubJOS5KSpM3I5259c2J8Jt+zV9Y58rf6PcmZdPGPycS+R/G3Rrm/lz75/fw/ifDTknPwOuzj+P+3oSwQyR14OU6sd7xKyx4uDdmrdZnOM8sW/4Kyxmz+k48OS9RFsSc1vPFSTa6M66XlEcuSScUi5EnVqYQnCVSWpC2VJLGmTD+JcoeRLq3nPjT4iTu+ydNcNZx5dmZWrNKPJarRfE9GaLlBqLpvySHU2eOfFB41Unb9m765yYiaadssSrg2jKxvhfFqyV058ehimpKjnY6ytU0RvTTSIupewlZyKxRELI1itEbNsCWxGaQpDAEwpAMJgGmCwJnFSVMJTpVS8BSYNACsLobCaVhC5ey4mmmRrUuXorNpXb2EDbfQXSeghraI0iXeis0TSVBLFXrQaTK2Epp6oLqY0noMzw2kFyGo+gYUk/AKvH1sla5TNorNxm/wBBipj2VIpvkRr6qOgs8XaSDWp43bYZwoNglWnZGlrRVOyKnkE1LlbKzaaSaBhqIXFpEXDoKAp0EwAhhrCTCYYAAkEwwBOgsVyC6TdhCoAaAAALGkaoKHsBOWgJUi4DsCZBSWkBK7ChrZQ+LGioqiIq66IKsClTAU1S0IOeSpmlTsKaIjRT+oENlE1oqpcQIcdlVSjREXRNAlvZQ6RlETo1FQ4p7RdUoRuxahOEVtjQp8a0IsQlG+y6rTk6pEZJ412XV1jNyWixYSTso2UVFWjOprbHVEqCgFJMCGijPlJPrRcVXJ+CYirpaIFtPoo0xw8slouLZKABoBpLtkQFUNIiM5/osVD12UOFoC7ZBVANExAFAArCPm/iZckXVHq6kfK46sehHk4XRyej3B8eL3YtTmFO07BWOaP5evBqeMdT9JXx5S/8H6T8a1x4Iz0S9Y3OdbQwLEvquybrU5/PwuEr+qGpldGHjBfbtmb66c+Jy1e+mIlTOCirgWXfqWZ8PDNJOxYvPScjc2J4l9RGDg7ou6mYr5EuVNeCcxerp4nLIqYvhNqlj4Wxun5w4zck78DCXSc29IYa0jjbWia1icmF1bEqXly5oyuqNxy61WNp/wAiVZ/1WR21xJFvq1NqqbI1rbHnd02TGp06FO+jLpLq035IpkXw4pAiv0FEqoIgBWgmrTAApAFhBYNMKAAITAlgtTJ0gzUW2VnTQWE7YDlXgFZytMJTdsB049BrMKWgl8FoGqa1oKlr2EwpypfVWEt/oKT8glqoqwsg4pOwYbSfQBBhYTYTSjLsJKnt7CKXGgvieITEw02Eh/ZsL7VS3/4Fvo5vjQNGPVtgisbUtoLzdWyNUr9lTUyvwGbpRXvsEaQQWNEiN4aQUwhMKYAEwgoYAwHYAABAFGgEBX9gFgLbCrgkA62FD0tAZOwHpIBx/YqiUfQEPXZVJ/oC4x0KLSpE1ES09lVnOe9BcOE23sJjeLIgkwMcrRqLGVhrApETDsugTApJsAcaGiWl5KDyAyBMAk9aAzauV3quhrSkqKhpV0RETi29lVm0kFRONP6llVrija2LWaqqJqMc9eSxqIi0yli7d0yGNE66H1GkeiIvsiJnFFisZqJoKCSsVacI70KlawjfZmopquiaEtFU00kT1EOVMuKq7EFADRES0XVTONllCtgUrYFkFxhZNQOFEQuL9F1dOK9kR87kioyXE9M9fNsz46sUpKKMWOstaQ5N/UizTzx1S7Yi9QsGGSTb8jqpzyShli3RdhliYxnjd+x5U9jTm2TF0+ddDF1GSTbTLIzbrVLklyJ8b+lJ1pCJaIQXchaSCbSa4iFU/siNfWXHZrWMb4I8FaMX1vnw5y5aQkLWE/q6Xk1PWL4rDG3sVZHbBJIw6xGWWtCJa48vezccqzjFMazioqPgVqHS9kBBPsUjbDNrRLGua6cbbMV1nrdLRGsNL0ANUApASAlHZWcURTATATdBUpu3r+gikwQBTTCEwYTCVnJsrN8CpIKcV7IshSkkVLUJrwGRcWwuxekrCoUpMJtpSVoJU07CY1Ukg3olvsF9Jx4rQSzE029hFptINTwpSVBLUwu9BOWn9BpMkvAS4lxaegmFPoJThHWwSE27B6pwToLh00gpQXdgkTW2GTjyYWatR4rSDUmG2wVIRUW6CwJJgkXFEaxSCmggAYAAmwaQ1DDRhCYUIAYSmFKgGEAIAqr0A1oKd6ChbATiDAophRKNMAekBjN2xGk3RVxrjk2RLGyqgyzyKwsc01TK0cFQ0dGPaIzTl1sIwysRqMl0VQwpphMCYGsZVEJgcrQMZtlXCcgYE7IWC/YBaC4SoB9lRSYQPZCIcUytJcUgKjroVKUpWFxllSkWLEY4U7ZdKc9tCCo3JhMdEH7IzVVXREJqy6qZY0xppcEUVGKXRBS/QD8ERD7NKjLCTj9GkxL/AGGodWTRpSoiHYwwWQFlMKr7AiaNRTj+xRS7JUbwaSMob30QCVooXFsaPIlgi9o6zp5LxE0ukVlpiTj0StTYqcbkiLYMknHSEmrbgxzdbFiSs5tyeiyYlulT8FQ1B+Rp+RHG29ktWctYpmdakTkhclxLKljZR+tMzreF+KPZf1U/MQ01qJWfiYquwQ+eqGGlFNXYIX8uy/E+rjF+CVY0cnGJGtJz1suJrnyNSZfjFusladFZ9aQgyVqRpHHbJq40UV1RNaw+FE0xvj6JW43x1xM1uKa9BUyCE9gAQthTGIARNp2k7rsGlIFSVBbIGmDVILDYVEglRJWVm+k09UCw5z8IYXpDSa0GbDxpbsLzBOMUEskKDvTBLobroGmkwoTS7AinYTGkdrYaiZy3SCWnFf8A0Cf9ObVA6qEk+wkik6X1Cz/gi/YWX+z4oGBWEiZLYLDatKgWC0wFN0C+LjJNBZUct6DOhvYGkUqI3MTy2XE0277Bo4+wYr+iKIr2CQ0wunYTTTCwX+waEwBsABhJjEkUmGjEQAhMKEVARRYB0AWAIC4v2Fgk66Cn4AcK8hVugFQClZBEmGmUlZRFDVa42utAaJkZobAzlGyqOKCri6WghT2Bjk6EWM0UNK+wapQVE00OFF1dS5VoGFyBhJWFHQT6r+gLcU1sM6ikF1LjLkmm69Fa1UU2RFqNDUooIUo0VdS9kUtgRNFiop2Ua6aIiFHey6qklHon1PqouuylXdkZwJ2MDKAmgKH4IB9CJEtF1TAGRAwAoAoALIgoaoaLKgCqUjKNYMI0iiCqSA8S5I7PJ6lxvcRqZrTG6WyVqU1Nb9jF1KVv7FRUVEnpMTKC/wCo0s/omq6Khwk5aZKsunypjF1rGUWtGcaljOUuLtGsZ3CeSUv4+Bifq34FObGQ20m5eAXTfQEJNsqNafky1QoF0xpCLJqyLUOXZNXCeBsun5L/ABU/BP0fhjPA1Lo1KxefWixtIzrX5XCKXZLVkHH7WDDoC4pJEWNIvwRr4tOuwqMkqrTdhDa0FLa0AwEmDDASik20qvsJCaATQMKmEwJANBYbColsM1KvoqRL5IJdKSaCWBOgaE0gacvt0FvqIpphJ4tqgti60RvPGLTsrlZVNSoLlKLfQIajuwuLdVsjRON9FSwpJBLC66AVO7YTFu2tBpPJ3QTVSaSC6lSQTT12geJlcgn0K0gnwlrsE8O7AvpBv4mST2glOCvsEW2miNbBFlSVRFFAgoGBsBJsqKRGoYUIJCXZUNEahgAQNgJBcFgAAAALphTvegrSO+wpt3oB6RANhRyBgctAQwqJdAQuyq0Vd1sFUtEQ2wEAtAPXgKGEZZeiqxK01gtbIytUDCmwrGXZVTTCmglh7CDaAOUgZBsBphDiwL5JkKEwG9gZyiVU7oBV7AGl4KCTjGNsiyW0RaasITa8lU477BTugHFhFJhnBYBYFJoILCkA0myilAialqmFIaGqCEFNrQQLoUH9kQkrLqrUCI0gqINYuuwBu+gPMlio6a8+IcGuhqYmStFiVmqvZWTfJ9hfRF7FI3UbXnZnW8PhaSVgxM8fFWhulmMk7uzTAj9bF9J4httlZutMTUU7JWubhN7+oN/pcU62SrB5CqWmQaKPInxrNbY8ZLWpGv4l4JrU5CjQ0xooqiLIFEKTxqrGpeWbgExjJbKzTitAFBcNIIoKq7Iojt7AckBPbAYQgsAWmEJhCCnQEtBKTb8BEybKltKLBCdpgOTtaIWptNFN1CabYYhqPsLhxUk9AmrS8huQWiBNyKnqHbaDP1UuWqDV1SSoEiZyoJaUbfYIG5RBbYIbVsE9JveglWpJoNacH4FJUzSvQLCcXSV2GbAopdgkDoKGEoClV9hCVWEXB/8A0Gpf7NpeAodroJ6GmugYECKi/YWVdEawMCWGRG7KTVpEbMBBCoaGA0ABSAAo8hAwHV9BcUo0FRJASnQFwbZFa16ChpAS2FJMA2AgCS0BlL67b0Gp6qLCYpMJh2FwrCGhq4dAwMiImitRnKPkoXJoBfkQXKTnfQXBqthMpxSY1L4qMENTVcI3dbC6aghrOk4IapOJdGUm09K9hqTQ5LwDEc3YaxcZhjGkXYT4pq0RKhqiqUq8hSSsFElqqtA1FpMKGn2XV04vwKU9rsICIOii41REFgAKaKi4Kxo1SS0iMrpUBhkWyxYzbGKUQtUGRYwHRVPbIjTHGiI1USCqQC15Alv0ByOSZtw1lkl4RYlrK/ZWSlG+kWJYriyNYfBeOyaY6MUVWyVuLfFEVnma4liWualZpzKSEKFC/A0w1jGmNIxiibWsinTWiCNJlDrk9AdGGDXZm1uR0pejLchphTVeQKXQUlsCorTsDOuwjOULY1mxDjWgYTRYlADQDIpgHIACaQUwABMA2AqAAB9ARJ0GdQpJvZU3RJegWEn7CRLT8BMpf0ENJILiooLIewBN0FhQt2EhxvdhYS70ENySC6VsJoaXbBiHIM6rckF9qZutIFuGk6sGURBBF0wSrjvsNT03ZFolFlSykkvIMDSfQT6ji49hMwJcugZqowXkNTk2kwUKSXYNw1K+xhKTt9Apx6Bhx7C4tNEXQ/0EqFt9FTFRIsWg0AgCiggCmEIKQAFARSXsLFqPoKuk0FZZFQGVAVAixrGQUpSAlgJAUhAAJgRKPJU1YX4KBKTZGjTCUwhoLp2ArKiZMixm5FjWIySfFpOmVJPWWw6aE66B9aY17DNaLr69k1P/ANWrpX2GfDsaYdhMJyIuJk9FGLa3ZppClFMLlpT3tBYUbT2Ct4P0GLGqZGcKUkCTGcpRZVyhproaFKdKgsjGT2GlqWqYTDXegK7CCgAB2DC7Ad6oIE2uwX1rjlQZxrGS7CYqeSNEMY5JplXGTKsNWBcYsJVcGhqaXFjTVxiQaJERffQDegInXgAjEDyY5K8nXHllKUm3opqoRvslqyL80gNIxddGWlxx7uhq4romqiWyozzfxLGenNbbNOauV0iY1rowwtGa3GjgktE1r8sskTUYqE6CTwlsK0xL7Eqx2wRl0jTi0RsnQBtsDRIBdANWAmvQEpAQ4hms5vYjNSiikQMKAhaAYAAgphAAmFCAKAP0D6iSsrFQ0gHTAGtEWxPGTKzlL6g8NU0Fgd+AlEb8ghxRFgS42F+ITbbKxp8U4tPyFzxHFpJeEGcUml2GtNtNdARFK9hmHO110FuwQSl2CeqbrQXUO0GTg15C84cnXQW3Dt0DVKTaI1pxi/IJEPUioU5WGbRHrQIcXJhZaHvoFJqwfQmkwmqe19Qt/wCHC2Fmq8EaStFSKTAaRDFJBYdBQgGAUEJgDBAFACC04rYF0FaR6Ck7QES+xBm0rC4aQDChAMAoAsgVlWCyGAsEsixDDRxBYpBkwFYITBPGcpUG5Gd2yqltMqYiSDUVFX0BtjRGLVpURndV2VPhPsEpvoIlv0G2fPuxGryhNOylTw8lP0IqwWnPj47BNVj6IHKQTMSpcilhWl32AY8jbaYXrlOXsLynJbWgsTcn0DGmFsM9N8aTDF8VKOiaRmyqJK1oJKcNdgobSegDYAA+TWggbYXAmAJWwjWMfIRqloiKSTCHxTQDikAf0A1roBNgT5ApMDxOLO+vHhxT8EWNI3RFa4uyVqOmFGa6Ro1rRNawnC0EsZuHErPxE8fJFlSxzTxNS0a1i84ccTtOhqY7MUfqYrtIvhoi2M8mO0WVmxhLG7LrOFKPFaKmNcCtEqx0x0YrrFu9BoSXQBaQDbb6AqPWwIvegHYDWuwIn+gjKSoM0kghgoQAAmAIKegYAgAQDAAaQUKKVtKm+wYmQSs32VhSDRSjc1K3pdEhZvoWikDSqyGRMNWVmBu+gWhWuwQPtBRkl0C0XGgmxN0E0RkvIWVM97DNPeqClJbVBKptcdhq/EQlxewzLi3JBrQv2EgnGugtgX7CGkFhqSsLKtO0RrWct9FYvqOLsM4tLWg1IaCmtBZA1QT4mSvoJYdUF+LjpEWeB7B9TF72UlVRFxSCqQDAAgC/SYAghgKwoYCAaTCriFi7VBSdsBMipaClQAND/oBgKwEwpEBYWmDEvYJ4lhYQaUgzTsITBCpoKma0F5rPjZWqJR9DSBRT7GpafGgS6uBE6NtJbDMhY5WrqgvUXey6zgfQRLaDeVnwV2xFtqZR9FWVONVf7dhOg2k9AxM4urK1KIzpELA221RRda+pGd/tE4u9lalhLb0FOUZBJYIoFTJb0CNIKgza2holZOUgMp22qSq9lamHdIM4EmwHTXgGm9hCoGhgOgBK9BWsFT2GW3aIgSCKVWBrWtASkBLAlXYFdgDiwEB5MqOseak16GpgTp7KOiCqNmK3jfFtGa3y18aI0uKpBSasJYVDTGbhbLKlio40/A1MWo10KsNkaTJBGUk/BWU8L7LqYqMa6IuNoEai07DRpryAnQQumDVJhUvfQC7YFt2gJkrQRm/2ETTsIriBXHWgE1SAhhCQUWDTAAhMKABipBQUAJ9ATQTCCGhVhMJ6SAl7eis01GgZiuJGsJKrKnxOr2DwppaoJUzYSk4sJhpMLEyTT2GbsUmvIa09ML9TOF7QZvIj/QItMNDi35BlppV2FxLvwEpwjXYJDiwadoLpNbBh16AJNeEC06JrSW97Kyb/AEFpBFpMi5RVAwUDDQWH2A0wHYAFoBBYBQDWwGogIAqwpqwpxAcn6CknXZFO0Av7CkwDsAKAgbAlkUmArC+gqJI1ugEAUAOwzYemE+EwsD6AlJPoKHELpU7C6fYQk0vAW82i0wmYp9BklsBosSlxpka3S4sppUFZ5NdF1ZNZNNOytL5KqYZwOMasJtS+9BpXJJfsjOJnbK1BGLirBbpqTj/IJmp7eg1jaGO0TWLVcEEZybToqyQWwrSESai1BBnVqK8BA4oCXECaZQ+JBXECox2E1oooJoQDWggiBouQA7QBLfQGcuwKX1QA5WANegPKca7OjzKgrQqwlCnsaSN4RuJlvG+JJIlqyNEiNSGkw0fQDSvoIUopAEY1sGH2BLQCkmuwFxGpiZIBOSjByfSL9S+Lxu0n4ZGo0tBVJWgJaAQQddgEX3YBVvQU1QByAzasIXFoISewrXwEQ7Ah9BCQCYSmgsFbAYQCFACYUUCE9BESBQEOhoTCigYEgkUgpDANWEZ1uisp4u7CYU2npAqlJLsLpyXlBaUmmthKhxbYZsNKgp8qBqnVdBq4EkgKomqhyp7KzpOa8BLRTewqlQPBVBMOJK1FBYKBgegJlHyVLExfsJFR7BFoNHRNAkGpA0EsHQPg8aWwDG243JUwRXQUggC/TXQDiBWwpNBQk0AVYArAGFBFOgKrWwqZIBAADYCATATAlkaACCzDCkEMGgGDoJ9OipqeyLR0GvpMEF0qBiaYa2H/AGAPXQT6faDOYS0Fw7thFFZwMCasjSJxKsqG11RTLCdFJpRkldhbGfTDRqpBPh78gVOX1CSMZN2g3I6MUbSIxfG8VSIxbqZINMJvZpoovYHTjIw0SDClogTAAsSlsodBDSIKSrYD7CKoBJX2UVxYRSTAH+wErAmtgVqtgKKsCo/sDy5nR56eLolWHIK2x9ErUaozWo1CxS7CpmBeMBT7CU/AVMQCXYEzCB+AJl/ERKiX/FP/APLE+l+NEFhoK0h0AMCfIQTIM8n/ABMqdfF4v4L+gs+D2FSABKGEQv5BWq6CIYVMglSghMIaDUNBKH2EAACkFMCZCFTIRKAUBAxFD6EWhCpDQCKhiqj/ALMMz6PZBg/5FYOQK0X8Sf7dP9IkVimuwv8AoSCVD7DK5dIN1XoLVkVjMrnUhGsf4h0heQwqXgNU49Eqw0FhhQwlJ9Bf9Molc4pBY1j0StQwANwAofQiUIJDYag8BCCUeQcmgoiBogokAn0FOPQCQUPsARFhhFPojSZFElARDYUiVYTFQmCJYagAQIaDY8BkMIQaN+C1mKfQZShGuimSryH0BEuw3FeEGb9J9hqCXQZgj0Ch9hTQZphFSKylEbqZ9FIwfZY3RLwGYh9lbJggxdg6XLsMwsngLyzf8kG46sPRlz7broVziZdCNObJ2WNph2WrXXjMudaIMGwEwBBYQIaCKQgrwEKHYFspCRBb8FQwJkALoAXYBIB4vIDXkD//2Q==") center / cover no-repeat;

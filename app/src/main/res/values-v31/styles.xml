@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.ArtStudio" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="colorPrimary">#00E8FF</item>
+        <item name="colorPrimaryDark">#071323</item>
+        <item name="colorAccent">#FF2BD1</item>
+        <item name="android:statusBarColor">#071323</item>
+        <item name="android:navigationBarColor">#071323</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowBackground">#071323</item>
+        <item name="android:windowSplashScreenBackground">#071323</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+    </style>
+</resources>

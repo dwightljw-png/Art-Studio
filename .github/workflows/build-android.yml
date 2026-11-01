@@ -1,0 +1,78 @@
+name: Build ART STUDIO Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - "app/**"
+      - "tools/**"
+      - "build.gradle.kts"
+      - "settings.gradle.kts"
+      - "gradle.properties"
+      - ".github/workflows/build-android.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-debug-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Rebuild exact ART STUDIO v3.0 HTML asset
+        shell: bash
+        run: |
+          mkdir -p app/src/main/assets
+          : > app/src/main/assets/art_studio_android.html
+          for f in app/src/main/assets/chunks/part*.htmlpart; do
+            cat "$f" >> app/src/main/assets/art_studio_android.html
+            printf '\n' >> app/src/main/assets/art_studio_android.html
+          done
+          echo '8316228da02aaca714602d52869bbb2f6e8c874fd99d9265682d033bbb06573e  app/src/main/assets/art_studio_android.html' | sha256sum -c -
+          python3 tools/patch_android_html.py
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Preserve debug signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: art-studio-debug-keystore-v1
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Set up Gradle 8.7
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Build debug APK
+        run: gradle --no-daemon :app:assembleDebug
+
+      - name: Copy APK to dist
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk dist/cyber-art-studio-v1.0.0.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cyber-art-studio-debug-apk
+          path: dist/cyber-art-studio-v1.0.0.apk
+          if-no-files-found: error
+          retention-days: 30

@@ -1,0 +1,267 @@
+  const before=ctx.getImageData(40,20,1,1).data;
+  smudge({x:29,y:20},{x:43,y:20});
+  const after=ctx.getImageData(40,20,1,1).data;
+  assert(after[0]>before[0]&&after[2]>0,'빨강 색소가 파랑 영역으로 이동하지 않음');
+ }finally{ctx.putImageData(save.boardPixels,0,0);settings.size=save.size;settings.alpha=save.alpha;render()}
+});
+test('마블링 휘젓기 굵기: 좁은 범위와 넓은 범위',()=>{
+ const p={type:'stir',x:40,y:50,dx:12,dy:0};
+ const narrow=marbleReplay.mapOp({...p,r:4},54,50);
+ const wide=marbleReplay.mapOp({...p,r:55},54,50);
+ assert(narrow.every(Number.isFinite)&&wide.every(Number.isFinite));
+ assert(Math.abs(wide[0]-54)>Math.abs(narrow[0]-54)+2,'휘젓기 굵기에 따른 이동 폭이 바뀌지 않음');
+});
+test('마블링 굵기 입력 및 표시 상태',()=>{
+ const r=$('stirSize');assert(r&&r.min==='3'&&r.max==='65');
+ assert($('marbleStirSizeRow')&&$('marbleDropSizeRow'),'두 굵기 설정이 모두 있어야 함');
+});
+test('마블링 중력 연산과 단계 병합의 유효성',()=>{
+ const a=marbleReplay.mapOp({type:'flow',tx:18,ty:-8,str:.6,t:.2,steps:1},160,110);
+ const b=marbleReplay.mapOp({type:'flow',tx:18,ty:-8,str:.6,t:.2,steps:3},160,110);
+ assert(a.every(Number.isFinite)&&b.every(Number.isFinite));
+ assert(Math.hypot(b[0]-160,b[1]-110)>Math.hypot(a[0]-160,a[1]-110)*2.5);
+});
+test('모자이크 최대 색상 수',()=>{const ps=Array.from({length:90},(_,i)=>[i*2,255-i*2,i]);assert(mosaicPalette(ps,5).length<=5)});
+test('A4 가로·세로 여백 / 비율 / 용지 안 배치',()=>{for(const direction of ['portrait','landscape'])for(const wh of [[4000,100],[100,4000],[1400,990]]){const p=pageLayout(...wh,direction,10);assert(p.x>=10-1e-8&&p.y>=10-1e-8);assert(p.x+p.w<=p.pw-10+1e-8&&p.y+p.h<=p.ph-10+1e-8);assert(Math.abs(p.w/p.h-wh[0]/wh[1])<1e-8)}});
+test('다각형 미입력 완료 호출 안전성',()=>{if(!live)finishPolygon();assert(true)});
+test('자동저장 무결성 체크섬',()=>{assert(hash('abc')===hash('abc'));assert(hash('abc')!==hash('abd'))});
+try{const c=canvas(20,20),g=c.getContext('2d');g.fillStyle='white';g.fillRect(0,0,20,20);const blob=makePDF(c,'portrait',10,.92),u=new Uint8Array(await blob.arrayBuffer());assert(String.fromCharCode(...u.slice(0,8))==='%PDF-1.4');results.push('PASS · 내장 PDF 바이너리 생성')}catch(e){results.push('FAIL · PDF — '+e.message)}
+if(db){try{const v={id:'selftest',value:uid()};await dbPut('meta',v);const r=await dbGet('meta',v.id);assert(r.value===v.value);results.push('PASS · IndexedDB 트랜잭션 저장 / 재조회')}catch(e){results.push('FAIL · IndexedDB — '+e.message)}}else results.push('SKIP · IndexedDB 사용 불가');return results}
+const featuresText=`v2.0: CYBER ART STUDIO 통합 버전. 화면의 버전 표기를 v2.0으로 통일하고, 좁은 상단에서 저장 글자 겹침과 사이버 UI 전환 버튼 표시 오류를 수정. 기존 파일 스키마 호환 유지.
+
+v1.6.16: 패널 고정 핀 아이콘의 비율과 중심 정렬, 닫기 X 아이콘의 크기와 두 버튼의 터치 영역을 통일. 기존 패널 동작 유지.\n\nv1.6.14: 미술기법 마블링 시작 버튼에 위쪽 여백 추가, 마블링 휘젓기에 굵기(3~65) 조절 슬라이더 신설. 미리보기와 최종 고해상도 재생에 동일 굵기 적용.\n\nv1.6.12: 하단 빠른 색상 20개 모두 손가락 좌우 스크롤로 선택. 굵기·농도·옵션은 고정하고 좁은 휴대폰에서는 2줄 배치하여 잘림 방지.\n\nv1.6.11: 무지개 스탬프를 독립된 6색 둥근 아치로 다시 제작. 아래쪽 색띠를 가리던 흰 구름 마스크와 분리된 보라색 타원 제거. 다른 스탬프나 그림 엔진은 그대로 유지.\n\nv1.6.8: 24종 기본 스탬프(기존 12종 유지 + 서로 다른 그림 12종 추가). 사용자 등록 그림·사진, 보관함 삭제 기능은 그대로 유지.\n\nv1.6.7: 스탬프 메뉴에 등록 스탬프 관리 추가. 썸네일별 삭제와 확인 단계 지원, 삭제 후 IndexedDB 목록 저장·선택 인덱스 갱신, 캔버스에 이미 찍은 그림은 유지.\n\nv1.6.6: 상단 도움말 버튼 제거. 세로 화면에서는 하단 바가 가로 스크롤로 밀리지 않도록 빠른 색상 개수를 자동 축소하고, 옵션·슬라이더가 한 줄 안에 보이도록 레이아웃 정리.
+
+v1.6.5: 에어브러시 분사 입자 불투명도가 지나치게 낮아 흰 캔버스에서 거의 보이지 않던 문제 수정. 흐린 방사형 브러시를 거리 간격으로 배치하고, 원터치·빠른 획·농도 조절을 지원.\n\nv1.6.4: 프로젝트 전환 이미지 캐시 정리, 인쇄 후 임시 이미지 해제, 장시간 마블링 고해상도 중간 결과 저장으로 무제한 기록 증가 방지.
+
+v1.6.3: 선택·지우개·문지르기·자동 모자이크 등 색을 쓰지 않는 모드에서는 하단 색상 비활성화, 마블링은 하단 팔레트를 직접 사용, 붓·필압선 겹침/불균일을 연속 경로로 개선.\n\nv1.6: 별도 팝업 없이 메인 캔버스에 마블링 미리보기와 터치 물감·휘젓기·기울기·적용/취소를 통합. 원본은 적용 전까지 변경되지 않으며 적용 작업 1회로 Undo 가능.
+
+v1.5: 양면 데칼코마니의 자연스러운 주름·압착·가장자리 확장, 파스텔 색소 이동형 문지르기, 마블링 중력 반응의 관성·감쇠와 실시간 흐름 상태 표시. 기존 조작 및 저장 구조는 유지.
+
+v1.4: 브러시별 기본 굵기·농도와 도구별 사용자 설정 기억, 20색 빠른 팔레트·60색 확장 팔레트, 지우개 색상 비활성화, 브라우저 전체화면 버튼 지원.
+
+v1.3: 데칼코마니 방향 버튼 제거·양쪽 동등한 물감 합성·기준선 드래그 시 가벼운 미리보기·인쇄 200% 기본 화질.
+
+v1.2: Ribbon 재사용 버퍼·완료 시 1회 인코딩·미사용 캐시 정리, 마블링 작업기록의 고해상도 재렌더링, 모바일 제목 고정폭, 저장 백업 및 오류 구분.\n\n이전에 확인된 오류 수정 유지: 두 손가락 채색 중 PNG 반복 생성 제거, 스캔라인 페인트통·투명도 보존, 입력 취소 시 임시 스탬프/변형 복원, 펜 입력 우선 처리, 다각형 완료 버튼 오류 수정, 다각형 도구 전환·수동저장 시 확정, A4 방향·여백 미리보기.\n\n구현: 오프라인 단일 HTML, 반응형 일반 UI, 왼손/오른손 전환, 상단 전체화면, 손가락/펜 드로잉, 필압, 선 보정, 연필·펜·붓·형광펜·에어브러시·파스텔·문지르기·지우개, 페인트통·스포이트, 두 손가락 띠 채색, 도형·다각형, 객체 선택·영역 선택·복제·회전·반전·크기 조절, 12종 스탬프·사용자 소재, 기준선 반전·대칭 복사·데칼코마니, 마블링, 직접·자동 모자이크, 이미지 삽입, 원본 파일, IndexedDB 자동저장·보관함, PNG/JPG/PDF·A4 인쇄.
+
+표현 수준 / 제한: 파스텔은 입자 질감 모델, 데칼코마니는 양면 접촉·안료 확장·압착 자국 근사, 마블링은 320×220 (느린 기기에서는 240×165) 미리보기와 최대 2048px 작업기록 재렌더링을 분리합니다. 복잡한 작업의 인쇄 품질 재렌더링은 오래 걸릴 수 있으며 취소할 수 있습니다. 전문 유체 해석이나 실제 종이·안료 물리의 완전한 재현은 아닙니다. 기울기·흔들림 센서 이벤트를 지원하며, 권한이나 센서가 없는 환경은 수동 기울기·파동 버튼을 사용합니다. 센서 반응은 실기기 검증 전입니다.
+
+선택 및 픽셀 편집: 도형·스탬프·사진은 개별 객체 편집이 가능합니다. 손그림은 사각/올가미 선택으로 잘라 편집합니다. 영역 선택, 문지르기, 채우기, 반전 적용, 자동 모자이크는 그 시점의 그림을 래스터로 합칩니다. 실행취소하면 이전 객체로 복구됩니다. 자동 모자이크는 지정한 최대 색상 수 내로 대표 색상을 추출합니다. 선택 영역의 자동 모자이크는 선택 객체의 사각 경계에 적용합니다.
+
+안정성: 실행취소는 최대 40단계이며 저장 데이터 추정 64MB를 초과하면 오래된 기록부터 줄입니다. 프로젝트는 최대 1600만 화소, 출력은 최대 2000만 화소입니다. 원본 .artstudio에는 편집 객체가 저장되며 실행취소 이력은 저장되지 않습니다. HTML 자체를 내려받으면 외부 통신 없이 실행합니다. 별도 PWA 설치 패키지와 APK는 포함되지 않습니다.
+
+실기기 확인 필요: 갤럭시탭 S Pen 필압·손바닥 차단, iPad Safari / Apple Pencil 필압·센서 권한, 정전식 펜, 가로·세로 회전, 모바일 파일 다운로드·공유, 실제 프린터 여백, 장시간 작업·대용량 자동저장, 브라우저 종료 후 복구. 이 HTML을 모바일 파일 미리보기에서 열면 스크립트가 제한될 수 있으므로 실행 가능한 브라우저를 사용하세요.`;
+function help(){modal(`<h2>ART STUDIO v3.0</h2><p class="note">그림을 위한 작은 작업실 · 독립 실행 HTML</p><details open><summary>빠른 시작</summary><p class="note">도구를 한 번 선택하고 그림을 그리세요. 같은 도구를 다시 누르거나 하단 옵션 버튼을 누르면 세부 설정이 열립니다. 선택 도구에서 두 손가락으로 확대·이동할 수 있습니다. 저장은 재편집 가능한 원본 파일, 내보내기는 PNG/JPG/PDF입니다.</p></details><details><summary>구현 기능 · 알려진 제한 · 실기기 확인</summary><pre>${esc(featuresText)}</pre></details><details><summary>유지보수 가능한 원본 소스</summary><p class="note">이 HTML 자체가 전체 소스입니다. CSS의 디자인 변수와 JavaScript의 Scene / Input / Selection / Effects / Persistence / Output 모듈 구역을 분리했습니다. 외부 패키지 및 서버 의존성이 없습니다.</p></details><button id="runTests">자동 검증 실행</button><pre id="testResults" class="status">현재 브라우저의 내부 검사는 위 버튼으로 실행하세요. v1.2 회귀시험 결과와 미검증 항목은 동봉한 검증 보고서를 참조하세요. 실기기 펜·센서·인쇄 및 장시간 메모리 검증은 별도 확인이 필요합니다.</pre><div class="actions"><button data-close>닫기</button></div>`);$('runTests').onclick=async()=>{$('runTests').disabled=true;const r=await selfTest();$('testResults').textContent=r.join('\n');$('runTests').disabled=false}}
+setTool('draw');applyColor(settings.color);refreshFullscreenButton();updateQuickPaletteLayout();$('panel').hidden=true;resize();fit();render();updateUndo();document.documentElement.classList.add('art-ready');initStore();
+</script><script id="cyber-art-studio-controller">
+/* Purely presentation. The original document engine, export and history remain intact. */
+(function(){
+'use strict';
+const body=document.body, stage=document.getElementById('stage');
+const button=document.getElementById('cyberToggle');
+const mark=stage.querySelector('.cy-art-logo');
+const KEY='ART_STUDIO.cyberUI';
+const RM=()=>window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+const CY=()=>body.classList.contains('cyber');
+const originalTitle=document.title;
+let touchDrawing=false,fx=null,paintFrame=0;
+function syncBlank(){
+  try{
+    const blank=typeof doc!=='undefined'&&Array.isArray(doc.objects)&&doc.objects.length===0;
+    stage.classList.toggle('cy-art-empty',blank&&!touchDrawing);
+    stage.classList.toggle('cy-art-working',touchDrawing);
+  }catch(_){}
+}
+function setCyber(on,save){
+  body.classList.toggle('cyber',on);
+  button.classList.toggle('cy-on',on);
+  button.setAttribute('aria-pressed',String(on));
+  button.querySelector('.cy-switch-symbol').textContent=on?'◧':'◢';
+  button.setAttribute('aria-label',on?'기본 UI로 전환':'CYBER UI로 전환');
+  button.querySelector('.cy-switch-label').textContent=on?'기본 UI':'CYBER UI';
+  button.title=on?'기본 UI로 전환':'CYBER ART STUDIO UI로 전환';
+  document.title=on?'CYBER ART STUDIO v3.0 · 나의 작은 작업실':originalTitle;
+  if(save)try{localStorage.setItem(KEY,on?'1':'0')}catch(_){}
+  syncBlank();
+}
+button.addEventListener('click',()=>setCyber(!CY(),true));
+ /* Header overflow is display-only. Delegate user clicks synchronously to the
+    original action buttons, without duplicating export/print/settings logic. */
+ const moreBtn=document.getElementById('headerMoreBtn');
+ const moreMenu=document.getElementById('headerMoreMenu');
+ const openMore=v=>{moreMenu.hidden=!v;moreBtn.setAttribute('aria-expanded',String(v))};
+ moreBtn.addEventListener('click',ev=>{ev.stopPropagation();openMore(moreMenu.hidden)});
+ moreMenu.addEventListener('click',ev=>{
+  const action=ev.target.closest('[data-header-action]');if(!action)return;
+  openMore(false);document.getElementById(action.dataset.headerAction)?.click();
+ });
+ document.addEventListener('pointerdown',ev=>{
+  if(!moreMenu.hidden&&!moreBtn.contains(ev.target)&&!moreMenu.contains(ev.target))openMore(false);
+ },{passive:true});
+ document.addEventListener('keydown',ev=>{if(ev.key==='Escape'&&!moreMenu.hidden){openMore(false);moreBtn.focus()}});
+ window.addEventListener('resize',()=>{if(window.innerWidth>955)openMore(false)},{passive:true});
+
+
+/* Actual STIFFENER-style hand-drawn path glyphs, not styled ordinary text. */
+const G={
+ C:{w:56,p:[[[52,9],[13,3],[3,52],[11,97],[54,91]],[[52,9],[46,20]]]},
+ Y:{w:58,p:[[[3,3],[29,52],[56,1]],[[29,52],[24,99]]]},
+ B:{w:58,p:[[[8,1],[5,99]],[[6,3],[47,8],[53,26],[35,47],[8,46]],[[11,48],[51,53],[57,78],[44,96],[5,97]]]},
+ E:{w:56,p:[[[54,4],[8,1],[4,97],[56,93]],[[6,48],[42,45]]]},
+ R:{w:60,p:[[[8,99],[6,2],[49,6],[55,26],[40,46],[8,50]],[[25,50],[59,99]]]},
+ S:{w:58,p:[[[55,7],[15,2],[4,24],[48,53],[57,78],[45,96],[1,91]]]},
+ T:{w:60,p:[[[0,5],[61,9]],[[31,7],[26,99]]]},
+ I:{w:28,p:[[[15,1],[12,99]],[[3,2],[27,4]],[[1,97],[25,99]]]},
+ N:{w:58,p:[[[5,99],[8,3],[50,96],[55,1]]]},
+ A:{w:60,p:[[[2,99],[28,2],[58,97]],[[12,63],[50,59]]]},
+ U:{w:58,p:[[[5,2],[4,74],[18,97],[41,95],[55,69],[55,2]]]},
+ D:{w:60,p:[[[8,98],[6,2],[39,5],[56,25],[57,70],[42,95],[6,97]]]},
+ O:{w:60,p:[[[17,3],[47,7],[57,27],[51,77],[38,96],[10,91],[3,69],[7,23],[17,3]]]},
+ ' ':{w:21,p:[]}
+};
+function rng(seed){return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function buildGraffiti(){
+ const R=rng(20261101),j=a=>(R()*2-1)*a;
+ const lines=[{t:'CYBER',s:1.34,y:8},{t:'ART STUDIO',s:.96,y:168}],gap=12,VW=730;
+ const width=t=>[...t].reduce((sum,c)=>sum+G[c].w,0)+gap*(t.length-1);
+ let main='',thin='';
+ for(const L of lines){let x=(VW-width(L.t)*L.s)/2;
+  for(const ch of L.t){const gl=G[ch];if(!gl){continue}
+   for(const seg of gl.p){const pts=seg.map(([a,b])=>[x+(a+j(2.0))*L.s,L.y+(b+j(2.0))*L.s]);
+    const a=pts.at(-1),b=pts.at(-2),d=Math.hypot(a[0]-b[0],a[1]-b[1])||1,k=(3+R()*7)/d;
+    pts[pts.length-1]=[a[0]+(a[0]-b[0])*k,a[1]+(a[1]-b[1])*k];
+    main+=`<path d="M${pts.map(p=>p.map(v=>v.toFixed(1)).join(',')).join('L')}" stroke-width="${((6.2+R()*2.4)*L.s**.6).toFixed(2)}"/>`;
+    thin+=`<path d="M${pts.map(p=>(p[0]+j(3)).toFixed(1)+','+(p[1]+j(3)).toFixed(1)).join('L')}" stroke-width="${(1.3+R()*1.2).toFixed(2)}"/>`;
+   }
+   x+=(gl.w+gap)*L.s;
+  }
+ }
+ let scr='';for(let i=0;i<9;i++){const x=35+R()*655,y=10+R()*246,len=60+R()*210;
+  scr+=`<path d="M${x.toFixed(1)},${y.toFixed(1)}l${len.toFixed(1)},${(-len*(.1+R()*.18)).toFixed(1)}" stroke-width="${(.7+R()*1.1).toFixed(2)}" opacity="${(.25+R()*.55).toFixed(2)}"/>`;
+ }
+ const ul='<path d="M130,300L400,287L394,296L615,279" stroke-width="3.3"/><path d="M152,307L595,292" stroke-width="1.2"/>';
+ const strokes='<g fill="none" stroke-linecap="butt" stroke-linejoin="miter">';
+ return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -22 ${VW} 352" role="img" aria-label="CYBER ART STUDIO graffiti">
+ <defs><filter id="cyArtNoise" x="-6%" y="-8%" width="112%" height="116%"><feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="2" seed="9" result="noise"/><feDisplacementMap in="SourceGraphic" in2="noise" scale="3.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+ <filter id="cyArtGlow" x="-17%" y="-26%" width="134%" height="152%"><feGaussianBlur in="SourceGraphic" stdDeviation="6" result="b1"/><feGaussianBlur in="SourceGraphic" stdDeviation="2" result="b2"/><feMerge><feMergeNode in="b1"/><feMergeNode in="b2"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+ <g transform="translate(18,0) skewX(-9)">
+ <g opacity=".44" transform="translate(-3,1)" stroke="#00e8ff">${strokes}${main}</g></g>
+ <g opacity=".42" transform="translate(3,-1)" stroke="#ff2bd1">${strokes}${main}</g></g>
+ <g filter="url(#cyArtGlow)" stroke="#ffffff"><g filter="url(#cyArtNoise)">${strokes}${main}${thin}${scr}${ul}</g></g></g>
+ </g></svg>`;
+}
+function mountGraffiti(){
+ const svg=buildGraffiti();mark.innerHTML=svg;
+ // Bake only once; keep SVG as fallback when data-URL canvas isn't allowed.
+ try{
+  const W=1460,H=704,im=new Image();
+  im.onload=()=>{try{
+   const c=document.createElement('canvas');c.width=W;c.height=H;
+   const g=c.getContext('2d');g.drawImage(im,0,0,W,H);
+   const baked=new Image();baked.alt='';baked.decoding='async';
+   baked.onload=()=>{mark.replaceChildren(baked);c.width=c.height=1};
+   baked.src=c.toDataURL('image/png');
+  }catch(_){}};
+  im.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg.replace('<svg ',`<svg width="${W}" height="${H}" `));
+ }catch(_){}
+}
+mountGraffiti();
+
+/* Track artwork presence through the original app state on meaningful actions,
+   not per brush movement. Never mutate doc, history, camera, or canvas pixels. */
+stage.addEventListener('pointerdown',()=>{touchDrawing=true;syncBlank()},{capture:true,passive:true});
+const unhold=()=>{touchDrawing=false;requestAnimationFrame(syncBlank)};
+stage.addEventListener('pointerup',unhold,{capture:true,passive:true});
+stage.addEventListener('pointercancel',unhold,{capture:true,passive:true});
+/* A normal art edit triggers the existing save-state text update. */
+const saveState=document.getElementById('saveState');
+if(saveState)new MutationObserver(syncBlank).observe(saveState,{childList:true,subtree:true,characterData:true});
+const modal=document.getElementById('modal');
+if(modal)new MutationObserver(()=>requestAnimationFrame(syncBlank)).observe(modal,{attributes:true,attributeFilter:['open']});
+const buttons=['projectBtn','undoBtn','redoBtn','saveBtn','exportBtn','printBtn'];
+buttons.forEach(id=>document.getElementById(id)?.addEventListener('click',()=>requestAnimationFrame(syncBlank)));
+
+/* Reusable small local-electricity spark, only on user actions. */
+let cv=null,g=null,raf=0,bolts=[],particles=[],rings=[],centerX=0,centerY=0;
+const SIZE=340;
+function ensureFX(x,y){
+ if(!cv){cv=document.createElement('canvas');cv.className='cy-art-fx';cv.setAttribute('aria-hidden','true');
+  Object.assign(cv.style,{position:'fixed',left:'0',top:'0',width:SIZE+'px',height:SIZE+'px',pointerEvents:'none',zIndex:'10000'});
+  body.appendChild(cv);const d=Math.min(1.5,devicePixelRatio||1);cv.width=SIZE*d;cv.height=SIZE*d;g=cv.getContext('2d');g.setTransform(d,0,0,d,0,0);
+ }
+ centerX=x;centerY=y;cv.style.transform=`translate3d(${x-SIZE/2}px,${y-SIZE/2}px,0)`;
+}
+function makeBolt(cx,cy){const pts=[[cx,cy]];let a=Math.random()*Math.PI*2,len=20+Math.random()*42;
+ for(let i=1;i<=5;i++)pts.push([cx+Math.cos(a)*len*i/5+(Math.random()-.5)*12,cy+Math.sin(a)*len*i/5+(Math.random()-.5)*12]);
+ bolts.push({pts,life:7,col:Math.random()>.5?'#00e8ff':'#ff2bd1'});
+}
+function frame(){
+ g.clearRect(0,0,SIZE,SIZE);g.globalCompositeOperation='lighter';g.lineCap='round';g.lineJoin='round';
+ bolts=bolts.filter(b=>{const a=b.life/7;g.beginPath();b.pts.forEach((p,i)=>i?g.lineTo(...p):g.moveTo(...p));
+ g.globalAlpha=a*.22;g.strokeStyle=b.col;g.lineWidth=7;g.stroke();g.globalAlpha=a*.85;g.lineWidth=2;g.stroke();g.globalAlpha=a;g.strokeStyle='#fff';g.lineWidth=.9;g.stroke();return --b.life>0});
+ rings=rings.filter(r=>{g.globalAlpha=r.life/9*.75;g.strokeStyle='#00e8ff';g.lineWidth=1.2;g.beginPath();g.arc(r.x,r.y,r.r,0,Math.PI*2);g.stroke();r.r+=2.5;return --r.life>0});
+ particles=particles.filter(p=>{const a=p.life/13;g.globalAlpha=a;g.strokeStyle=p.c;g.lineWidth=1;g.beginPath();g.moveTo(p.x,p.y);p.x+=p.vx;p.y+=p.vy;p.vy+=.12;g.lineTo(p.x,p.y);g.stroke();return --p.life>0});
+ g.globalAlpha=1;
+ if(bolts.length||rings.length||particles.length)raf=requestAnimationFrame(frame);
+ else {raf=0;g.clearRect(0,0,SIZE,SIZE)}
+}
+function spark(el,amount=1){
+ if(!CY()||RM()||document.hidden||!el)return;
+ const r=el.getBoundingClientRect();if(r.width<4||r.height<4)return;
+ const x=r.left+r.width/2,y=r.top+r.height/2;ensureFX(x,y);bolts=[];particles=[];rings=[];
+ for(let i=0;i<Math.ceil(4*amount);i++)makeBolt(SIZE/2,SIZE/2);
+ for(let i=0;i<Math.ceil(19*amount);i++){
+  const a=Math.random()*2*Math.PI,sp=1+Math.random()*3;
+  particles.push({x:SIZE/2,y:SIZE/2,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,c:i%3?'#b5faff':'#ffdd77',life:10+Math.random()*3});
+ }
+ rings.push({x:SIZE/2,y:SIZE/2,r:4,life:9});
+ if(!raf)raf=requestAnimationFrame(frame);
+}
+function magnet(el){if(!CY()||RM()||!el?.animate)return;
+ el.animate([{translate:'0 0'},{translate:'-1px .3px'},{translate:'1.1px -.3px'},{translate:'0 0'}],{duration:150,easing:'ease-out'});
+}
+const loadIds=new Set(['projectBtn','saveBtn','exportBtn','printBtn','marbleApply','marbleStamp','importStamp','canvasStamp','mosaicPreview','outputGo']);
+const hotIds=new Set(['undoBtn','redoBtn','marbleDropMode','marbleStirMode','marbleClear','settingsApply','fitBtn']);
+/* Capturing passive presentation listener does not preventDefault or stop propagation. */
+document.addEventListener('click',ev=>{
+ if(!CY())return;
+ const b=ev.target.closest?.('button');if(!b||b.disabled||b===button)return;
+ const load=loadIds.has(b.id);
+ const hot=load||hotIds.has(b.id)||b.hasAttribute('data-tool');
+ if(load)spark(b,1.10);
+ if(hot){magnet(b);b.classList.add('cy-hot');setTimeout(()=>b.classList.remove('cy-hot'),220)}
+},{capture:true,passive:true});
+button.addEventListener('click',()=>{if(CY()){spark(button,1.15);magnet(button)}});
+const prog=document.getElementById('marbleProgress');
+function syncProgressBar(){
+ if(!prog)return;
+ const m=(prog.textContent||'').match(/(\d{1,3})\s*%/);
+ const pct=Math.max(0,Math.min(100,m?Number(m[1]):0));
+ prog.style.setProperty('--cy-progress',pct+'%');
+ prog.style.setProperty('--cy-bar-active',(!prog.hidden&&pct<100&&pct>0)?'1':'0');
+}
+ if(prog){let prior=!prog.hidden,lastMilestone=0;
+  new MutationObserver(()=>{
+    syncProgressBar();
+    if(CY()&&!prog.hidden&&!prior){
+      spark(document.getElementById('marbleApply'),.75);
+      lastMilestone=0;
+    }
+    const match=(prog.textContent||'').match(/(\d{1,3})\s*%/);
+    const milestone=match?Math.floor(Math.min(100,+match[1])/25):0;
+    if(CY()&&!prog.hidden&&milestone>lastMilestone&&milestone>0)spark(prog,.55);
+    lastMilestone=milestone;
+    if(prog.hidden)lastMilestone=0;
+    prior=!prog.hidden;
+  }).observe(prog,{attributes:true,attributeFilter:['hidden'],childList:true,subtree:true,characterData:true});
+  syncProgressBar();
+ }
+/* On load completion, artwork itself is not flashed or modified; a short
+   confirmation at the actual stage is safe even for saved transparent art. */
+const imageInput=document.getElementById('imageInput');
+imageInput?.addEventListener('change',()=>{if(CY())spark(document.querySelector('[data-tool=stamp]')||button,.6)});
+let on=false;try{on=localStorage.getItem(KEY)==='1'}catch(_){}
+setCyber(on,false);
+})();
+</script>
+
+</body></html>
