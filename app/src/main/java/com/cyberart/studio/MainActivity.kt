@@ -239,14 +239,17 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
-        fun printWebView(jobName: String?) {
+        fun printWebView(jobName: String?, landscape: Boolean) {
             runOnUiThread {
                 try {
                     val name = jobName?.takeIf { it.isNotBlank() } ?: "ART STUDIO"
                     val printManager = getSystemService(Context.PRINT_SERVICE) as PrintManager
                     val adapter = binding.webView.createPrintDocumentAdapter(name)
                     val attributes = PrintAttributes.Builder()
-                        .setMediaSize(PrintAttributes.MediaSize.ISO_A4)
+                        .setMediaSize(
+                            if (landscape) PrintAttributes.MediaSize.ISO_A4.asLandscape()
+                            else PrintAttributes.MediaSize.ISO_A4.asPortrait()
+                        )
                         .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
                         .setColorMode(PrintAttributes.COLOR_MODE_COLOR)
                         .build()

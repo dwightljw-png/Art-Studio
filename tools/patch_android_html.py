@@ -44,14 +44,21 @@ if html.count(original_download) != 1:
     raise SystemExit("Could not find unique download function to bridge Android save")
 html = html.replace(original_download, patched_download, 1)
 
+# The HTML already selects A4 portrait/landscape based on the canvas.
+# Pass that exact orientation to the Android bridge; do not reflow or rotate artwork.
+native_print_call = "try{window.print()}catch"
+if html.count(native_print_call) != 1:
+    raise SystemExit("Could not find unique print invocation to forward orientation")
+html = html.replace(native_print_call, "try{window.print(orientation)}catch", 1)
+
 # The app prepares #printRoot and its A4 image before calling window.print().
 # Preserve all those preparations and redirect just the print invocation.
 bridge = """
 <script id="androidStudioNativeBridge">
 (function(){
  if(!(window.AndroidApp&&typeof AndroidApp.printWebView==='function'))return;
- window.print=function(){
-   AndroidApp.printWebView('ART STUDIO A4');
+ window.print=function(orientation){
+   AndroidApp.printWebView('ART STUDIO A4', orientation==='landscape');
  };
 })();
 </script>
