@@ -1,3 +1,217 @@
+ const o={id:uid(),kind:mode==='erase'?'eraseMask':'image',src,
+  x:doc.w/2,y:doc.h/2,w:doc.w,h:doc.h,alpha:1};
+ releaseRibbonBuffer();return o;
+}
+function pruneAssets(){
+ // Preserve resources used by the active artwork, user stamps, clipboard and Undo/Redo.
+ // Releasing a cache entry must never invalidate a retained historical state.
+ const keep=new Set([...customStamps,...doc.objects.filter(o=>o.src).map(o=>o.src)]);
+ if(copyBuffer?.src)keep.add(copyBuffer.src);
+ if(live?.src)keep.add(live.src);
+ for(const src of assets.keys()){
+  if(keep.has(src)||history.some(h=>h.includes(src))||future.some(h=>h.includes(src)))continue;
+  // Data URLs are the authoritative serialized resource; this is only a decoded cache.
+  assets.delete(src);
+  // An image may be referenced elsewhere (e.g. thumbnails), so don't mutate its bitmap here.
+ }
+}
+function ribbonObject(polys){const c=canvas(doc.w,doc.h),g=c.getContext('2d');g.fillStyle=settings.color;g.globalAlpha=settings.alpha;g.beginPath();for(const ps of polys){ps.forEach((p,i)=>g[i?'lineTo':'moveTo'](p.x,p.y));g.closePath()}g.fill();const src=c.toDataURL();assets.set(src,c);return{id:uid(),kind:'image',src,x:doc.w/2,y:doc.h/2,w:doc.w,h:doc.h,alpha:1}}
+function finishPolygon(){if(!live||!Array.isArray(live.points)||live.points.length<2)return;const ps=live.points,xs=ps.map(p=>p.x),ys=ps.map(p=>p.y),x=(Math.min(...xs)+Math.max(...xs))/2,y=(Math.min(...ys)+Math.max(...ys))/2;live.x=x;live.y=y;live.w=Math.max(1,Math.max(...xs)-Math.min(...xs));live.h=Math.max(1,Math.max(...ys)-Math.min(...ys));live.points=ps.map(p=>({x:p.x-x,y:p.y-y}));checkpoint();doc.objects.push(live);selected=live.id;live=null;changed()}
+/* Selection and object editing. */
+function contextHTML(c,html){if(c.dataset.html!==html){c.innerHTML=html;c.dataset.html=html}}
+function placeContext(){const c=$('context');if(live?.kind==='shape'&&live.points?.length){c.hidden=false;contextHTML(c,'<button data-act="finishPoly" class="primary">완료</button><button data-act="cancelPoly">취소</button>');const p=live.points.at(-1);positionContext(p.x,p.y+30/camera.z);c.querySelectorAll('button').forEach(b=>b.onclick=()=>{if(b.dataset.act==='finishPoly')finishPolygon();else{live=null;paint()}});return}if(axis&&!drag){c.hidden=false;contextHTML(c,settings.effect==='decal'?'<button data-act="apply" class="primary">양면 압착 적용</button><button data-act="cancel">취소</button>':'<button data-act="direction" title="방향 반전">⇄ 방향</button><button data-act="apply" class="primary">적용</button><button data-act="cancel">취소</button>');const m=axisMid();positionContext(m.x,m.y+35/camera.z)}else if(preview&&!axis){c.hidden=false;contextHTML(c,'<button data-act="applyMosaic" class="primary">모자이크 적용</button><button data-act="cancel">취소</button>');positionContext(doc.w/2,doc.h*.15)}else{const o=objectById();if(!o){c.hidden=true;return}c.hidden=false;contextHTML(c,'<button data-act="copy" title="복사·붙여넣기">복제</button><button data-act="flipx" title="좌우 반전">↔</button><button data-act="flipy" title="상하 반전">↕</button><button data-act="edit">속성</button><button data-act="stamp">소재 등록</button><button data-act="delete" title="선택 삭제">삭제</button>');positionContext(o.x,o.y+o.h/2+18/camera.z)}c.querySelectorAll('button').forEach(b=>b.onclick=()=>contextAction(b.dataset.act))}
+function positionContext(x,y){const c=$('context'),w=c.offsetWidth||280;c.style.left=clamp(camera.x+x*camera.z-w/2,10,Math.max(10,stage.clientWidth-w-10))+'px';let top=camera.y+y*camera.z;if(top+c.offsetHeight>stage.clientHeight-65)top-=c.offsetHeight+80;c.style.top=clamp(top,10,Math.max(10,stage.clientHeight-c.offsetHeight-65))+'px'}
+async function contextAction(a){if(a==='direction'){if(settings.effect==='decal')return;axis.dir*=-1;buildReflection();return}if(a==='apply'){await applyReflection();return}if(a==='cancel'){cancelEffect();return}if(a==='applyMosaic'){checkpoint();await replaceWithCanvas(preview);preview=null;changed();return}const o=objectById();if(!o)return;if(a==='edit'){editObject(o);return}if(a==='stamp'){const c=canvas(Math.ceil(o.w+20),Math.ceil(o.h+20)),g=c.getContext('2d'),q=clone(o);q.x=c.width/2;q.y=c.height/2;q.angle=0;drawObject(g,q);registerStamp(c);return}checkpoint();if(a==='copy'){const q=clone(o);q.id=uid();q.x+=24;q.y+=24;doc.objects.push(q);selected=q.id}if(a==='flipx')o.fx=-(o.fx||1);if(a==='flipy')o.fy=-(o.fy||1);if(a==='delete'){doc.objects=doc.objects.filter(q=>q.id!==o.id);selected=null}changed()}
+function editObject(o){modal(`<h2>선택한 그림 편집</h2><div class="rows"><label>너비<input id="objW" type="number" min="1" value="${Math.round(o.w)}"></label><label>높이<input id="objH" type="number" min="1" value="${Math.round(o.h)}"></label><label>회전 (°)<input id="objA" type="number" value="${Math.round((o.angle||0)*180/Math.PI)}"></label><label>투명도 (%)<input id="objO" type="number" min="1" max="100" value="${Math.round((o.alpha??1)*100)}"></label>${o.kind==='shape'?`<label>테두리 색<input id="objC" type="color" value="${o.color}"></label><label>채우기 색<input id="objF" type="color" value="${o.fillColor||o.color}"></label><label><input id="objFill" type="checkbox" ${o.fill?'checked':''}>내부 채우기</label><label><input id="objStroke" type="checkbox" ${o.stroke?'checked':''}>테두리</label>`:''}</div><div class="actions"><button data-close>취소</button><button id="objApply" class="primary">적용</button></div>`);$('objApply').onclick=()=>{const w=+$('objW').value,h=+$('objH').value;if(!(w>0&&h>0&&w<20000&&h<20000))return toast('크기를 확인하세요');checkpoint();if(o.points)o.points=o.points.map(p=>({x:p.x*w/o.w,y:p.y*h/o.h}));o.w=w;o.h=h;o.angle=(+$('objA').value||0)*Math.PI/180;o.alpha=clamp(+$('objO').value/100,.01,1);if(o.kind==='shape'){o.color=$('objC').value;o.fillColor=$('objF').value;o.fill=$('objFill').checked;o.stroke=$('objStroke').checked}closeModal();changed()}}
+async function selectRegion(d){const ps=d.type==='rectselect'?[d.start,{x:d.last.x,y:d.start.y},d.last,{x:d.start.x,y:d.last.y}]:d.points;if(ps.length<3)return;const xs=ps.map(p=>p.x),ys=ps.map(p=>p.y),x=Math.floor(clamp(Math.min(...xs),0,doc.w)),y=Math.floor(clamp(Math.min(...ys),0,doc.h)),w=Math.ceil(clamp(Math.max(...xs),0,doc.w)-x),h=Math.ceil(clamp(Math.max(...ys),0,doc.h)-y);if(w<3||h<3)return;checkpoint();const cut=canvas(w,h),cg=cut.getContext('2d');cg.beginPath();ps.forEach((p,i)=>cg[i?'lineTo':'moveTo'](p.x-x,p.y-y));cg.closePath();cg.clip();cg.drawImage(board,-x,-y);ctx.save();ctx.globalCompositeOperation='destination-out';ctx.beginPath();ps.forEach((p,i)=>ctx[i?'lineTo':'moveTo'](p.x,p.y));ctx.closePath();ctx.fill();ctx.restore();await replaceWithCanvas(board);const src=cut.toDataURL();assets.set(src,cut);const o={id:uid(),kind:'image',src,x:x+w/2,y:y+h/2,w,h};doc.objects.push(o);selected=o.id;changed()}
+async function restoreRaster(src){const im=await getAsset(src);ctx.clearRect(0,0,doc.w,doc.h);ctx.drawImage(im,0,0);paint()}
+async function replaceWithCanvas(c){const frozen=canvas(c.width,c.height);frozen.getContext('2d').drawImage(c,0,0);const src=frozen.toDataURL();assets.set(src,frozen);doc.objects=[{id:uid(),kind:'image',src,x:doc.w/2,y:doc.h/2,w:doc.w,h:doc.h}];selected=null}
+async function commitBoard(){await replaceWithCanvas(board);changed()}
+function getAsset(src){if(assets.has(src))return Promise.resolve(assets.get(src));return new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>{assets.set(src,im);resolve(im)};im.onerror=()=>reject(Error('이미지 읽기 실패'));im.src=src})}
+/* Smudge: pigment transport on the CURRENT composited bitmap. The brush
+   carries color and alpha from the trailing contact footprint to the new one,
+   with feathered mixing rather than stamping a translucent old patch. */
+function smudgeStep(a,b){
+ const r=clamp(Math.round(settings.size*.5),4,100),size=r*2+2;
+ const ax=Math.round(a.x-r),ay=Math.round(a.y-r),bx=Math.round(b.x-r),by=Math.round(b.y-r);
+ const source=ctx.getImageData(ax,ay,size,size).data;
+ const dst=ctx.getImageData(bx,by,size,size),out=dst.data;
+ const strength=clamp(settings.alpha,0,1);
+ let active=false;
+ for(let y=1;y<size-1;y++)for(let x=1;x<size-1;x++){
+  const nx=(x-r-1)/r,ny=(y-r-1)/r,rr=nx*nx+ny*ny;
+  if(rr>=1)continue;
+  const edge=(1-rr)*(1-rr);
+  // Tiny local diffusion softens the chalk grains, while the offset source
+  // sample actually pulls pigment along the finger's travel direction.
+  const j=(y*size+x)*4,jl=j-4,jr=j+4,ju=j-size*4,jd=j+size*4;
+  const sa=(source[j+3]*.70+(source[jl+3]+source[jr+3]+source[ju+3]+source[jd+3])*.075)/255;
+  const da=out[j+3]/255;
+  const transport=clamp(edge*strength*.80,0,.82);
+  const smudgeAlpha=(source[j+3]*.70+(source[jl+3]+source[jr+3]+source[ju+3]+source[jd+3])*.075)/255;
+  const newAlpha=da*(1-transport)+smudgeAlpha*transport;
+  if(!newAlpha)continue;
+  for(let ch=0;ch<3;ch++){
+   const sourceColor=(source[j+ch]*source[j+3]*.70+
+    (source[jl+ch]*source[jl+3]+source[jr+ch]*source[jr+3]+source[ju+ch]*source[ju+3]+source[jd+ch]*source[jd+3])*.075)/255;
+   const dstColor=out[j+ch]*da;
+   out[j+ch]=clamp(Math.round((dstColor*(1-transport)+sourceColor*transport)/newAlpha),0,255);
+  }
+  out[j+3]=Math.round(newAlpha*255);active=true;
+ }
+ if(active)ctx.putImageData(dst,bx,by);
+}
+function smudge(a,b){
+ const dist=Math.hypot(b.x-a.x,b.y-a.y),step=Math.max(2,settings.size*.16);
+ // Keep each substep within a fraction of the finger pad so pigment doesn't
+ // jump or leave disconnected stamps on fast swipes.
+ const n=clamp(Math.ceil(dist/step),1,80);
+ for(let k=1;k<=n;k++){
+  const t=k/n,p={x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t};
+  const previous={x:a.x+(b.x-a.x)*(k-1)/n,y:a.y+(b.y-a.y)*(k-1)/n};
+  smudgeStep(previous,p);
+ }
+ paint();
+}
+function eyedrop(p){const g=exportCanvas(true).getContext('2d'),d=g.getImageData(clamp(Math.floor(p.x),0,doc.w-1),clamp(Math.floor(p.y),0,doc.h-1),1,1).data;settings.color='#'+[...d.slice(0,3)].map(n=>n.toString(16).padStart(2,'0')).join('');$('color').value=settings.color;document.querySelectorAll('.swatch').forEach(b=>b.classList.toggle('active',b.dataset.color===settings.color));toast('색상을 가져왔습니다')}
+function floodPixels(match,dest,w,h,px,py,color,alpha,tolerance){
+ const x0=clamp(Math.floor(px),0,w-1),y0=clamp(Math.floor(py),0,h-1),i0=(y0*w+x0)*4,target=Array.from(match.slice(i0,i0+4)),seen=new Uint8Array(w*h),stack=[y0*w+x0];let count=0;
+ const matches=p=>{if(seen[p])return false;const i=p*4;return Math.abs(match[i]-target[0])<=tolerance&&Math.abs(match[i+1]-target[1])<=tolerance&&Math.abs(match[i+2]-target[2])<=tolerance&&Math.abs(match[i+3]-target[3])<=tolerance};
+ while(stack.length){const pos=stack.pop();if(!matches(pos))continue;const y=Math.floor(pos/w);let x=pos%w;while(x>0&&matches(y*w+x-1))x--;let up=false,down=false;for(;x<w&&matches(y*w+x);x++){const p=y*w+x,i=p*4;seen[p]=1;count++;const da=dest[i+3]/255,oa=alpha+da*(1-alpha);for(let ch=0;ch<3;ch++)dest[i+ch]=oa?(color[ch]*alpha+dest[i+ch]*da*(1-alpha))/oa:0;dest[i+3]=Math.round(oa*255);if(y>0){const yes=matches(p-w);if(yes&&!up)stack.push(p-w);up=yes}if(y<h-1){const yes=matches(p+w);if(yes&&!down)stack.push(p+w);down=yes}}}return count;
+}
+async function bucket(p){checkpoint();const visible=exportCanvas(true).getContext('2d').getImageData(0,0,doc.w,doc.h),c=exportCanvas(false),g=c.getContext('2d'),im=g.getImageData(0,0,doc.w,doc.h),rgb=settings.color.match(/\w\w/g).map(x=>parseInt(x,16));floodPixels(visible.data,im.data,doc.w,doc.h,p.x,p.y,rgb,settings.alpha,settings.tolerance);g.putImageData(im,0,0);await replaceWithCanvas(c);changed()}
+// Registered stamp management. Deleting a library entry must not delete artwork that already uses it.
+function manageStamps(){
+ modal('<h2>등록 스탬프 관리</h2><p class="note">보관함에서 제거해도 캔버스에 이미 찍은 그림은 그대로 남습니다.</p><div id="customStampList" class="custom-stamp-list"></div><div class="actions"><button data-close>닫기</button></div>');
+ // modal() binds data-close before the dynamic rows are populated.
+ renderCustomStampList();
+}
+function renderCustomStampList(){
+ const list=$('customStampList');if(!list)return;
+ list.replaceChildren();
+ if(!customStamps.length){const p=document.createElement('p');p.className='note';p.textContent='등록한 내 그림이나 사진이 없습니다.';list.append(p);return}
+ customStamps.forEach((src,index)=>{
+  const row=document.createElement('div');row.className='custom-stamp-row';
+  const img=document.createElement('img');img.src=src;img.alt='내 그림 '+(index+1);
+  const name=document.createElement('span');name.textContent='내 그림 '+(index+1);
+  const del=document.createElement('button');del.className='danger';del.textContent='삭제';del.title='내 그림 '+(index+1)+' 보관함에서 삭제';
+  del.onclick=()=>confirmDeleteStamp(index);
+  row.append(img,name,del);list.append(row);
+ });
+}
+function confirmDeleteStamp(index){
+ if(index<0||index>=customStamps.length)return;
+ modal('<h2>등록 스탬프 삭제</h2><p class="note">내 그림 '+(index+1)+'을(를) 스탬프 보관함에서 삭제할까요? 캔버스에 이미 찍은 그림은 지워지지 않습니다.</p><div class="actions"><button id="backToStampList">취소</button><button id="deleteCustomStamp" class="primary">삭제</button></div>');
+ $('backToStampList').onclick=manageStamps;
+ $('deleteCustomStamp').onclick=async()=>{
+  const button=$('deleteCustomStamp');button.disabled=true;
+  try{
+   const next=customStamps.filter((_,i)=>i!==index);
+   // First persist the shorter list, avoiding deletion being silently undone on reload.
+   if(db)await dbPut('meta',{id:'stamps',value:next});
+   customStamps=next;
+   if(settings.stamp.startsWith('custom')){
+    const old=Number(settings.stamp.slice(6));
+    if(old===index)settings.stamp='flower';
+    else if(old>index)settings.stamp='custom'+(old-1);
+   }
+   pruneAssets();
+   if(tool==='stamp')showPanel();
+   manageStamps();
+   toast(db?'등록 스탬프를 삭제했습니다':'현재 목록에서 삭제했습니다. 이 환경에서는 보관함 저장이 지원되지 않습니다.');
+  }catch(e){button.disabled=false;toast('스탬프 삭제 실패: '+e.message)}
+ };
+}
+let customStamps=[];function addStamp(p){let o={id:uid(),kind:'stamp',stamp:settings.stamp,color:settings.color,x:p.x,y:p.y,w:settings.stampSize,h:settings.stampSize,alpha:settings.alpha};if(settings.stamp.startsWith('custom')){const src=customStamps[+settings.stamp.slice(6)];if(!src)return;o.kind='image';o.src=src;const im=assets.get(src);o.h=o.w*im.height/im.width}doc.objects.push(o);
+ // v2.0.4: a stamp is appended on top of the already rendered board.
+ // Avoid replaying every old object for every new stamp (quadratic cost).
+ // The individual stamp stays in doc.objects for selection, undo, save and export.
+ drawObject(ctx,o);paint()}
+async function registerStamp(c){const small=canvas(Math.min(2048,c.width),Math.min(2048,c.width)*c.height/c.width);small.getContext('2d').drawImage(c,0,0,small.width,small.height);const src=small.toDataURL();customStamps.push(src);await getAsset(src);if(db)try{await dbPut('meta',{id:'stamps',value:customStamps})}catch(e){toast('소재 저장 실패: '+e.message)}toast('내 그림 소재로 등록했습니다');if(tool==='stamp')showPanel()}
+function importImage(stamp=false){$('imageInput').value='';$('imageInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const src=await readFile(f),im=await getAsset(src),c=canvas(Math.min(4096,im.width),Math.min(4096,im.width)*im.height/im.width);if(c.width*c.height>16e6)throw Error('이미지를 1600만 화소 이하로 줄여주세요');c.getContext('2d').drawImage(im,0,0,c.width,c.height);if(stamp)await registerStamp(c);else{checkpoint();const sc=Math.min(1,doc.w*.8/c.width,doc.h*.8/c.height),data=c.toDataURL();assets.set(data,c);const o={id:uid(),kind:'image',src:data,x:doc.w/2,y:doc.h/2,w:c.width*sc,h:c.height*sc};doc.objects.push(o);setTool('select');selected=o.id;changed()}}catch(err){toast(err.message)}};$('imageInput').click()}
+function readFile(f,text=false){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;text?r.readAsText(f):r.readAsDataURL(f)})}
+/* Effects: shared reflection line, independent mosaic and marbling processors. */
+function axisMid(){return{x:(axis.a.x+axis.b.x)/2,y:(axis.a.y+axis.b.y)/2}}
+function axisNormal(){const dx=axis.b.x-axis.a.x,dy=axis.b.y-axis.a.y,l=Math.hypot(dx,dy)||1;return{x:-dy/l,y:dx/l}}
+// A contact fold is not directional: normal is canonical even if the user draws B→A.
+function foldNormal(a=axis.a,b=axis.b){const dx=b.x-a.x,dy=b.y-a.y,l=Math.hypot(dx,dy)||1;let x=-dy/l,y=dx/l;if((Math.abs(x)>=Math.abs(y)?x:y)<0){x=-x;y=-y}return{x,y}}
+function reflectionMatrix(a,b){const dx=b.x-a.x,dy=b.y-a.y,l=Math.hypot(dx,dy)||1,ux=dx/l,uy=dy/l,A=2*ux*ux-1,B=2*ux*uy,D=2*uy*uy-1;return[A,B,B,D,a.x-A*a.x-B*a.y,a.y-B*a.x-D*a.y]}
+/* Contact print: one dense pigment field, pressed on BOTH faces without a direction.
+   This is a deterministic paint impression, not a physical fluid solver.
+   No blur or translucent offset copies; runtime O(width * height). */
+function decalPressPixels(input,w,h,press,spread,n,m,pixelScale=1){
+ const a=input.data,count=w*h,near=new Int32Array(count),dist=new Float32Array(count);
+ const pressure=clamp(press/.7,0,1),radius=(spread*(.22+.78*pressure)+pressure*2)*pixelScale,world=1/pixelScale;
+ let maxAlpha=0;for(let i=3;i<a.length;i+=4)maxAlpha=Math.max(maxAlpha,a[i]);const seedAlpha=Math.max(1,maxAlpha*.9);
+ for(let i=0;i<count;i++){near[i]=a[i*4+3]>=seedAlpha?i:-1;dist[i]=near[i]<0?1e9:0}
+ const relax=(i,j,c)=>{if(dist[j]+c<dist[i]){dist[i]=dist[j]+c;near[i]=near[j]}};
+ for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=y*w+x;if(x)relax(i,i-1,1);if(y){relax(i,i-w,1);if(x)relax(i,i-w-1,1.4142);if(x+1<w)relax(i,i-w+1,1.4142)}}
+ for(let y=h-1;y>=0;y--)for(let x=w-1;x>=0;x--){const i=y*w+x;if(x+1<w)relax(i,i+1,1);if(y+1<h){relax(i,i+w,1);if(x)relax(i,i+w-1,1.4142);if(x+1<w)relax(i,i+w+1,1.4142)}}
+ const out=new ImageData(w,h),b=out.data;
+ for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+  const side=(x+.5-m.x)*n.x+(y+.5-m.y)*n.y;
+  if(side>0)continue; // intrinsic canonical half; user-facing direction has no effect
+  const u=(x-m.x)*(-n.y)+(y-m.y)*n.x,v=side;
+  // Fold pressure drives paint along the fold and outward from the seam.
+  // Broad ripples plus fine compression lines give soft, continuous squeezed
+  // shapes (not blur, spray noise or a translated ghost copy).
+  const reachFromFold=Math.exp(-Math.abs(v)*world/(26+spread*9));
+  const longWave=Math.sin(u*world*.034+1.6*Math.sin(u*world*.013)+Math.sin(v*world*.017));
+  const fineWave=Math.sin(u*world*.105+2.2*Math.sin(v*world*.031)+.5*Math.sin(u*world*.067));
+  const tangential=pressure*(6+spread*1.25)*pixelScale*reachFromFold*(longWave+.24*fineWave);
+  const normalShift=pressure*(2+spread*.8)*pixelScale*reachFromFold*(.25+longWave*.8);
+  const sx=clamp(Math.round(x-n.y*tangential+n.x*normalShift),0,w-1);
+  const sy=clamp(Math.round(y+n.x*tangential+n.y*normalShift),0,h-1);
+  const i=sy*w+sx,j=near[i];if(j<0)continue;
+  const reach=radius*(.75+.25*Math.sin(u*world*.067+Math.sin(v*world*.036)*1.5));
+  const coverage=clamp(reach-dist[i]+.5,0,1);
+  const outAlpha=Math.max(a[i*4+3],a[j*4+3]*coverage);if(!outAlpha)continue;
+  const k=(y*w+x)*4,q=(a[i*4+3]>=a[j*4+3]*coverage?i:j)*4;
+  // Fine ridges follow the pressed pigment, with no random perforation.
+  const branch=Math.sin(u*world*.12+Math.sin(v*world*.055)*2.3+Math.sin(u*world*.033+v*world*.021));
+  const ridge=Math.pow(Math.max(0,1-Math.abs(branch)*5),2);
+  const shade=1-pressure*(.025+.11*ridge),light=pressure*ridge*12;
+  for(let c=0;c<3;c++)b[k+c]=clamp(a[q+c]*shade+light,0,255);
+  b[k+3]=outAlpha;
+ }
+ return out;
+}
+function buildDecal(scale=1){
+ // Preview runs at reduced resolution while moving the fold; final always uses full document resolution.
+ const w=Math.max(1,Math.round(doc.w*scale)),h=Math.max(1,Math.round(doc.h*scale));
+ const sx=w/doc.w,sy=h/doc.h,aa={x:axis.a.x*sx,y:axis.a.y*sy},bb={x:axis.b.x*sx,y:axis.b.y*sy};
+ const input=canvas(w,h),ig=input.getContext('2d',{willReadFrequently:true});ig.drawImage(board,0,0,w,h);
+ const fold=canvas(w,h),fg=fold.getContext('2d',{willReadFrequently:true});fg.setTransform(...reflectionMatrix(aa,bb));fg.drawImage(input,0,0);fg.resetTransform();
+ const base=ig.getImageData(0,0,w,h),other=fg.getImageData(0,0,w,h),a=base.data,b=other.data;
+ // Equal, bilateral pigment contact: whichever half the paint started on has the same priority.
+ for(let k=0;k<a.length;k+=4){const pa=a[k+3]/255,pb=b[k+3]/255;if(!pb)continue;
+  if(pa){const sum=pa+pb;for(let c=0;c<3;c++)a[k+c]=(a[k+c]*pa+b[k+c]*pb)/sum}
+  else for(let c=0;c<3;c++)a[k+c]=b[k+c];
+  a[k+3]=255*(pa+pb-pa*pb);
+ }
+ const n=foldNormal(aa,bb),m={x:(aa.x+bb.x)/2,y:(aa.y+bb.y)/2};
+ const half=canvas(w,h);half.getContext('2d').putImageData(decalPressPixels(base,w,h,settings.press,settings.spread,n,m,Math.min(sx,sy)),0,0);
+ const result=canvas(w,h),g=result.getContext('2d');g.drawImage(half,0,0);g.setTransform(...reflectionMatrix(aa,bb));g.drawImage(half,0,0);g.resetTransform();
+ input.width=input.height=1;fold.width=fold.height=1;half.width=half.height=1;
+ return result;
+}
+function decalPreviewScale(){return Math.min(1,460/Math.max(doc.w,doc.h))}
+
+let reflectionSource=null;
+function buildReflection(draft=false){if(!axis||Math.hypot(axis.b.x-axis.a.x,axis.b.y-axis.a.y)<2)return;if(settings.effect==='decal'){reflectionSource=null;preview=buildDecal(draft?decalPreviewScale():1);paint();return;}const c=canvas(doc.w,doc.h),g=c.getContext('2d'),n=axisNormal(),m=axisMid(),dx=axis.b.x-axis.a.x,dy=axis.b.y-axis.a.y,l=Math.hypot(dx,dy),u={x:dx/l,y:dy/l},far=Math.max(doc.w,doc.h)*6,sgn=-axis.dir;g.beginPath();g.moveTo(m.x-u.x*far,m.y-u.y*far);g.lineTo(m.x+u.x*far,m.y+u.y*far);g.lineTo(m.x+u.x*far+n.x*far*sgn,m.y+u.y*far+n.y*far*sgn);g.lineTo(m.x-u.x*far+n.x*far*sgn,m.y-u.y*far+n.y*far*sgn);g.closePath();g.clip();g.drawImage(board,0,0);reflectionSource=c;preview=canvas(doc.w,doc.h);const pg=preview.getContext('2d');pg.transform(...reflectionMatrix(axis.a,axis.b));pg.drawImage(c,0,0);paint()}
+async function applyReflection(){if(!preview)return;if(settings.effect==='decal')preview=buildDecal(1);checkpoint();const out=canvas(doc.w,doc.h),g=out.getContext('2d');if(settings.effect!=='decal')g.drawImage(board,0,0);if(settings.effect==='mirror'){g.globalCompositeOperation='destination-out';g.drawImage(reflectionSource,0,0);g.globalCompositeOperation='source-over'}g.drawImage(preview,0,0);await replaceWithCanvas(out);cancelEffect();changed()}
+function cancelEffect(){axis=null;preview=null;reflectionSource=null;paint()}
+function tilePath(g,x,y,size,type,angle=0,seed=1){g.save();g.translate(x,y);g.rotate(angle*Math.PI/180);g.beginPath();const r=size/2;if(type==='circle')g.arc(0,0,r,0,Math.PI*2);else if(type==='triangle'){g.moveTo(0,-r);g.lineTo(r,r);g.lineTo(-r,r);g.closePath()}else if(type==='paper'){for(let i=0;i<7;i++){const a=i*Math.PI*2/7,rr=r*(.7+.3*seeded(seed+i));g[i?'lineTo':'moveTo'](Math.cos(a)*rr,Math.sin(a)*rr)}g.closePath()}else g.rect(-r,-r,size,size);g.fill();g.restore()}
+function addTile(p){const n=settings.tileSize,c=canvas(n*1.5,n*1.5),g=c.getContext('2d');g.fillStyle=settings.color;tilePath(g,c.width/2,c.height/2,Math.max(1,n-settings.gap),settings.tile,settings.tileAngle,Date.now());const src=c.toDataURL();assets.set(src,c);doc.objects.push({id:uid(),kind:'image',src,x:p.x,y:p.y,w:c.width,h:c.height,alpha:settings.alpha});render()}
+function mosaicPalette(samples,k){if(!samples.length)return[[255,255,255]];const sorted=[...samples].sort((a,b)=>a.reduce((x,y)=>x+y)-b.reduce((x,y)=>x+y));let centers=Array.from({length:Math.min(k,sorted.length)},(_,i)=>sorted[Math.floor(i*(sorted.length-1)/Math.max(1,k-1))].slice());for(let t=0;t<7;t++){const sums=centers.map(()=>[0,0,0,0]);for(const p of samples){let best=0,d=Infinity;centers.forEach((q,i)=>{const n=p.reduce((s,v,j)=>s+(v-q[j])**2,0);if(n<d){best=i;d=n}});p.forEach((v,j)=>sums[best][j]+=v);sums[best][3]++}centers=centers.map((c,i)=>sums[i][3]?sums[i].slice(0,3).map(v=>v/sums[i][3]):c)}return centers}
+function mosaicPreview(){const source=exportCanvas(true),src=source.getContext('2d').getImageData(0,0,doc.w,doc.h).data,c=canvas(doc.w,doc.h),g=c.getContext('2d'),n=settings.tileSize;let rect={x:0,y:0,w:doc.w,h:doc.h};const o=objectById();if(o)rect={x:Math.max(0,o.x-o.w/2),y:Math.max(0,o.y-o.h/2),w:o.w,h:o.h};const tiles=[];for(let y=rect.y;y<Math.min(doc.h,rect.y+rect.h);y+=n)for(let x=rect.x;x<Math.min(doc.w,rect.x+rect.w);x+=n){let sums=[0,0,0],count=0;for(let yy=y;yy<Math.min(doc.h,y+n);yy+=Math.max(1,n/4))for(let xx=x;xx<Math.min(doc.w,x+n);xx+=Math.max(1,n/4)){const k=(Math.floor(yy)*doc.w+Math.floor(xx))*4;for(let ch=0;ch<3;ch++)sums[ch]+=src[k+ch];count++}tiles.push({x,y,rgb:sums.map(v=>v/count)})}const sample=tiles.filter((_,i)=>i%Math.max(1,Math.ceil(tiles.length/3000))===0).map(t=>t.rgb),colors=mosaicPalette(sample,settings.tileColors);g.drawImage(board,0,0);g.clearRect(rect.x,rect.y,rect.w,rect.h);g.save();g.beginPath();g.rect(rect.x,rect.y,rect.w,rect.h);g.clip();for(const t of tiles){let best=colors[0],dist=Infinity;for(const c of colors){const d=c.reduce((s,v,i)=>s+(v-t.rgb[i])**2,0);if(d<dist){dist=d;best=c}}g.fillStyle=`rgb(${best.map(Math.round).join(',')})`;tilePath(g,t.x+n/2,t.y+n/2,Math.max(1,n-settings.gap),settings.tile,settings.tileAngle,t.x+t.y)}g.restore();preview=c;axis=null;$('panel').hidden=true;paint()}
+/* Deferred marbling replay: pure, dependency-free worker body. Logical space stays 320×220. */
+function marbleWorkerMain(){
+ function mapOp(o,x,y){
+  if(o.type==='drop'){const dx=x-o.x,dy=y-o.y,d=Math.hypot(dx,dy);if(d<1)return[x,y];const v=Math.sqrt(Math.max(0,d*d-o.r*o.r))/d;return[o.x+dx*v,o.y+dy*v]}
+  if(o.type==='stir'){const r=o.r||Math.sqrt(1200),d=(x-o.x)**2+(y-o.y)**2,k=Math.exp(-d/(r*r))*.85;return[x-o.dx*k,y-o.dy*k]}
+  if(o.type==='flow'){const steps=o.steps||1,dx=o.tx*.035*o.str*steps,dy=o.ty*.035*o.str*steps,eddy=o.str*steps*.013;return[x-dx-Math.sin(y*.04+o.t+Math.sin(x*.017))*eddy*Math.abs(o.tx),y-dy-Math.sin(x*.04-o.t+Math.sin(y*.015))*eddy*Math.abs(o.ty)];}
+  return[x+Math.sin(y*.12+o.t)*o.strength,y+Math.sin(x*.09-o.t)*o.strength*.65];
  }
  async function replay(data,post,yieldRows){const{ops,w,h,base}=data;let a=new Uint8ClampedArray(w*h*4),b=new Uint8ClampedArray(a.length);const sx=w/320,sy=h/220;
    if(base?.buffer){
@@ -84,217 +298,3 @@ function compactMarbleIfNeeded(){
 function marbleWarp(o){
  if(!marble||marble.rendering)return;
  const last=marble.ops.at(-1);
- if(o.type==='flow'&&last?.type==='flow'&&(last.steps||1)<5&&
-  Math.abs(o.tx-last.tx)<.35&&Math.abs(o.ty-last.ty)<.35&&Math.abs(o.str-last.str)<.015){
-  // Keep roughly identical velocity fields in a bounded replay operation.
-  const k=last.steps||1;last.tx=(last.tx*k+o.tx)/(k+1);last.ty=(last.ty*k+o.ty)/(k+1);
-  last.str=(last.str*k+o.str)/(k+1);last.t=(last.t*k+o.t)/(k+1);last.steps=k+1;
-  }else marble.ops.push(o);
-  marbleAdvect((x,y)=>{const p=marbleReplay.mapOp(o,x,y);return{x:p[0],y:p[1]}});
-  if(marble.ops.length>=MARBLE_COMPACT_AT)compactMarbleIfNeeded();
-  paint();
-}
-
-let marble=null,marbleRAF=0,sensorEnabled=false;
-/* Live marble mode: same canvas, temporary worker buffer; commit exactly once. */
-let marblePointerId=null,marblePriorTool='draw';
-function marbleCanvasPoint(e){const r=stage.getBoundingClientRect();const p=toDoc(e.clientX-r.left,e.clientY-r.top);return {x:clamp(p.x/doc.w*320,0,320),y:clamp(p.y/doc.h*220,0,220),inside:inPaper(p)}}
-function marblePointerStart(e){if(!marble||marble.rendering||marblePointerId!==null)return;const p=marbleCanvasPoint(e);if(!p.inside)return;if(e.pointerType==='touch'&&marble.down)return;e.preventDefault();view.setPointerCapture(e.pointerId);marblePointerId=e.pointerId;marble.down=true;marble.last=p;if(marble.mode==='drop')marbleDrop(p);paint()}
-function marblePointerMove(e){if(!marble||!marble.down||marblePointerId!==e.pointerId||marble.rendering)return;e.preventDefault();const p=marbleCanvasPoint(e),a=marble.last;if(!a)return;const dist=Math.hypot(p.x-a.x,p.y-a.y);if(dist>.04){if(marble.mode==='stir')marbleWarp({type:'stir',x:p.x,y:p.y,dx:p.x-a.x,dy:p.y-a.y,r:+$('stirSize').value});marble.last=p;paint()}}
-function marblePointerEnd(e){if(marblePointerId!==e.pointerId)return;marblePointerId=null;if(marble){marble.down=false;marble.last=null}paint()}
-function openMarble(){if(marble){$('marbleDock').hidden=false;return}if($('modal').open){toast('열려 있는 창을 닫은 뒤 마블링을 시작하세요');return}if(pointerMap.size||live||drag){toast('현재 작업을 마친 뒤 시작하세요');return}
- cancelEffect();selected=null;const c=$('marbleCanvas'),g=c.getContext('2d',{willReadFrequently:true});c.width=480;c.height=330;g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);
- marble={c,g,last:null,down:false,tx:0,ty:0,vx:0,vy:0,t:0,lastTime:0,ops:[],snapshot:null,checkpoints:0,compacting:null,compactWorker:null,compactAbort:null,compactFailureAt:0,pixels:null,spare:null,slowFrames:0,rendering:false,mode:'drop'};marblePointerId=null;
- $('marbleDock').hidden=false;$('marbleDropSizeRow').hidden=false;$('marbleStirSizeRow').hidden=true;$('marbleDropMode').classList.add('active');$('marbleStirMode').classList.remove('active');$('marbleDropMode').setAttribute('aria-pressed','true');$('marbleStirMode').setAttribute('aria-pressed','false');document.body.classList.add('marbling');$('panel').hidden=true;$('marbleProgress').hidden=true;$('marbleFlowStatus').textContent='물감 방울을 떨어뜨린 뒤, 휘젓기를 선택해 무늬를 늘려보세요.';
- updateColorControls();marbleRAF=requestAnimationFrame(marbleTick);paint();}
-function closeMarbleSession(){stopMarble();$('marbleDock').hidden=true;document.body.classList.remove('marbling');if(tool==='effects'){settings.effect='marble';setTool('draw');$('panel').hidden=true}updateColorControls();paint()}
-$('marbleCancel').onclick=()=>{if(marble?.rendering)releaseMarbleWorker();closeMarbleSession()};
-$('marbleClear').onclick=()=>{if(!marble||marble.rendering)return;const{c,g}=marble;g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);marble.ops=[];marble.snapshot=null;marble.checkpoints=0;marble.pixels=null;marble.spare=null;marble.vx=0;marble.vy=0;paint()};
-$('marbleStamp').onclick=async()=>{if(!marble)return;try{const output=await marbleRenderOutput();await registerStamp(output);toast('마블링 소재를 등록했습니다')}catch(e){toast(e.message)}};
-$('marbleApply').onclick=async()=>{if(!marble)return;try{const m=marble,output=await marbleRenderOutput();if(m!==marble)return;checkpoint();const src=output.toDataURL();assets.set(src,output);doc.objects.push({id:uid(),kind:'image',src,x:doc.w/2,y:doc.h/2,w:doc.w,h:doc.h});closeMarbleSession();changed()}catch(e){toast('마블링 적용 실패: '+e.message)}};
-function setMarbleMode(mode){if(!marble)return;marble.mode=mode;marble.down=false;marble.last=null;marblePointerId=null;$('marbleDropMode').classList.toggle('active',mode==='drop');$('marbleStirMode').classList.toggle('active',mode==='stir');$('marbleDropMode').setAttribute('aria-pressed',String(mode==='drop'));$('marbleStirMode').setAttribute('aria-pressed',String(mode==='stir'));$('marbleDropSizeRow').hidden=mode!=='drop';$('marbleStirSizeRow').hidden=mode!=='stir';$('marbleFlowStatus').textContent=mode==='drop'?'물감 방울을 떨어뜨리세요. 방울을 겹쳐 놓으면 이전 색을 밀어냅니다.':'휘젓기 굵기를 조절한 다음 물감 경계를 끌어 무늬를 만드세요. 값이 작을수록 가늘게 휘저어집니다.'}
-$('marbleDropMode').onclick=()=>setMarbleMode('drop');$('marbleStirMode').onclick=()=>setMarbleMode('stir');
-$('dropSize').addEventListener('input',()=>{$('dropSizeValue').textContent=$('dropSize').value});
-$('stirSize').addEventListener('input',()=>{$('stirSizeValue').textContent=$('stirSize').value});
-$('sensorBtn').onclick=toggleSensor;$('shakeBtn').onclick=toggleShake;$('manualWave').onclick=()=>marbleWave(9);
-function marbleDrop(p){if(!marble||marble.rendering)return;const r=+$('dropSize').value,color=settings.color,rgb=color.match(/\w\w/g).map(v=>parseInt(v,16));marbleWarp({type:'drop',x:p.x,y:p.y,r,rgb});const{c,g}=marble;g.save();g.scale(c.width/320,c.height/220);g.fillStyle=color;g.beginPath();g.arc(p.x,p.y,r,0,Math.PI*2);g.fill();g.restore();marble.pixels=g.getImageData(0,0,c.width,c.height);paint()}
-function marbleAdvect(map){
- if(!marble)return;
- const begun=performance.now(),{c,g}=marble,w=c.width,h=c.height,sx=w/320,sy=h/220;
- if(!marble.pixels)marble.pixels=g.getImageData(0,0,w,h);
- if(!marble.spare)marble.spare=g.createImageData(w,h);
- const a=marble.pixels.data,b=marble.spare.data;
- for(let y=0;y<h;y++)for(let x=0;x<w;x++){
-  const p=map(x/sx,y/sy),xx=clamp(p.x*sx,0,w-1),yy=clamp(p.y*sy,0,h-1),x0=Math.floor(xx),y0=Math.floor(yy),x1=Math.min(w-1,x0+1),y1=Math.min(h-1,y0+1),fx=xx-x0,fy=yy-y0,k=(y*w+x)*4;
-  const a00=(y0*w+x0)*4,a10=(y0*w+x1)*4,a01=(y1*w+x0)*4,a11=(y1*w+x1)*4;
-  // A sharp paint boundary follows the nearest pigment, instead of mixing with white every animation frame.
-  const near=(Math.round(yy)*w+Math.round(xx))*4;
-  const difference=Math.max(Math.abs(a[a00]-a[a11]),Math.abs(a[a00+1]-a[a11+1]),Math.abs(a[a00+2]-a[a11+2]),Math.abs(a[a10]-a[a01]),Math.abs(a[a10+1]-a[a01+1]),Math.abs(a[a10+2]-a[a01+2]));
-  const edge=difference>38;
-  for(let ch=0;ch<3;ch++){
-   const bilinear=a[a00+ch]*(1-fx)*(1-fy)+a[a10+ch]*fx*(1-fy)+a[a01+ch]*(1-fx)*fy+a[a11+ch]*fx*fy;
-   b[k+ch]=edge?a[near+ch]*.68+bilinear*.32:bilinear;
-  }b[k+3]=255;
- }
- g.putImageData(marble.spare,0,0);
- [marble.pixels,marble.spare]=[marble.spare,marble.pixels];
- if(performance.now()-begun>35)marble.slowFrames++;else marble.slowFrames=Math.max(0,marble.slowFrames-1);
- if(marble.slowFrames>=5&&w>320){const tmp=canvas(320,220);tmp.getContext('2d').drawImage(c,0,0,320,220);c.width=320;c.height=220;g.drawImage(tmp,0,0);marble.pixels=null;marble.spare=null;marble.slowFrames=0;toast('태블릿 성능에 맞춰 미리보기를 조정했습니다. 최종 출력 해상도는 유지됩니다.')}
-}
-function marbleTick(t){
- if(!marble)return;
- if(marble.rendering){marbleRAF=requestAnimationFrame(marbleTick);return}
- if(t-marble.lastTime>55){
-  const m=marble,dt=m.lastTime?clamp((t-m.lastTime)/55,.5,2):1;m.lastTime=t;m.t+=.06*dt;
-  const tx=sensorEnabled?m.tx:+$('tiltX').value,ty=sensorEnabled?m.ty:+$('tiltY').value;
-  const viscosity=+$('viscosity').value/100,str=+$('flow').value/100*(1-viscosity*.72);
-  // Inertia: quick changes accelerate water gradually, level tablet damps flow.
-  const response=1-Math.exp(-dt*(.32-viscosity*.17));
-  m.vx+=((tx-m.vx)*response);m.vy+=((ty-m.vy)*response);
-  if(Math.abs(tx)<.2&&Math.abs(m.vx)<.15)m.vx=0;
-  if(Math.abs(ty)<.2&&Math.abs(m.vy)<.15)m.vy=0;
-  if(Math.abs(m.vx)+Math.abs(m.vy)>.22)marbleWarp({type:'flow',tx:m.vx,ty:m.vy,str,t:m.t});
-  const el=$('marbleFlowStatus');if(el)el.textContent=`흐름 ${Math.round(Math.hypot(m.vx,m.vy)*str*3)}% · 기울기 ${sensorEnabled?'센서':'수동'} · 기록 ${m.ops.length}개 / 중간 저장 ${m.checkpoints||0}회`;
- }
- marbleRAF=requestAnimationFrame(marbleTick);
-}
-async function toggleSensor(){if(sensorEnabled){sensorEnabled=false;window.removeEventListener('deviceorientation',orientation);$('sensorBtn').textContent='기울기 센서 ON';return}try{if(!window.DeviceOrientationEvent)throw Error('이 환경은 센서를 지원하지 않습니다. 수동 기울기를 사용하세요.');if(typeof DeviceOrientationEvent.requestPermission==='function'){const p=await DeviceOrientationEvent.requestPermission();if(p!=='granted')throw Error('센서 권한이 없습니다. 수동 기울기를 사용하세요.')}window.addEventListener('deviceorientation',orientation);sensorEnabled=true;$('sensorBtn').textContent='기울기 센서 OFF';toast('센서 수신 대기 · 움직이지 않으면 수동 기울기를 사용하세요')}catch(e){toast(e.message)}}
-let shakeEnabled=false,lastShake=0;
-function marbleWave(strength){if(!marble)return;const t=Date.now()*.001;marbleWarp({type:'wave',strength,t})}
-function motion(e){const a=e.acceleration;if(!marble||!a)return;const mag=Math.hypot(a.x||0,a.y||0,a.z||0);if(mag>3&&Date.now()-lastShake>90){lastShake=Date.now();marbleWave(Math.min(12,mag*.6)*(+$('sensitivity').value/100))}}
-async function toggleShake(){if(shakeEnabled){window.removeEventListener('devicemotion',motion);shakeEnabled=false;$('shakeBtn').textContent='흔들림 센서 ON';return}try{if(!window.DeviceMotionEvent)throw Error('흔들림 센서를 지원하지 않습니다. 수동 파동을 사용하세요.');if(typeof DeviceMotionEvent.requestPermission==='function'&&await DeviceMotionEvent.requestPermission()!=='granted')throw Error('센서 권한이 없습니다');window.addEventListener('devicemotion',motion);shakeEnabled=true;$('shakeBtn').textContent='흔들림 센서 OFF';toast('흔들림 수신 대기 · 지원 기기에서 반응합니다')}catch(e){toast(e.message)}}
-function orientation(e){if(!marble||e.beta==null||e.gamma==null)return;const a=((screen.orientation?.angle??window.orientation??0)*Math.PI/180),k=+$('sensitivity').value/100;marble.tx=clamp((e.gamma*Math.cos(a)+e.beta*Math.sin(a))*k,-30,30);marble.ty=clamp((e.beta*Math.cos(a)-e.gamma*Math.sin(a))*k,-30,30)}
-/* Project validation, IndexedDB transaction verification and crash recovery. */
-function validateDoc(d){if(d?.format!=='ART-STUDIO'||d.version!==1)throw Error('지원하지 않는 프로젝트 형식입니다');if(!Number.isInteger(d.w)||!Number.isInteger(d.h)||d.w<32||d.h<32||d.w*d.h>16e6||d.w>8192||d.h>8192)throw Error('캔버스 크기를 확인하세요 (최대 1600만 화소 / 한 변 8192)');if(!Array.isArray(d.objects)||d.objects.length>50000)throw Error('객체 정보가 올바르지 않습니다');if(typeof d.id!=='string'||typeof d.name!=='string'||!(d.bg==='transparent'||/^#[0-9a-f]{6}$/i.test(d.bg)))throw Error('프로젝트 속성이 올바르지 않습니다');for(const o of d.objects){if(!['shape','stamp','stroke','image','eraseMask'].includes(o.kind))throw Error('알 수 없는 객체');for(const k of ['x','y','w','h','angle','alpha','size','lineWidth'])if(o[k]!==undefined&&(!Number.isFinite(o[k])||Math.abs(o[k])>1e7))throw Error('유효하지 않은 객체 좌표');if((o.kind==='image'||o.kind==='eraseMask')&&(!/^data:image\/(png|jpeg|webp);base64,/.test(o.src)))throw Error('프로젝트에 외부 이미지 링크를 사용할 수 없습니다');if(o.points&&(!Array.isArray(o.points)||o.points.some(p=>!Number.isFinite(p.x)||!Number.isFinite(p.y))))throw Error('잘못된 선 좌표')}return true}
-function hash(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return(h>>>0).toString(16)}
-async function loadDoc(d,reset=true){validateDoc(d);await Promise.all(d.objects.filter(o=>o.src).map(o=>getAsset(o.src)));doc=clone(d);releaseRibbonBuffer();selected=null;live=null;drag=null;axis=null;preview=null;if(reset){history=[];future=[];fit()}render();pruneAssets();updateUndo()}
-function openDB(){return new Promise((resolve,reject)=>{const r=indexedDB.open('ART-STUDIO-1',1);r.onupgradeneeded=()=>{r.result.createObjectStore('projects',{keyPath:'id'});r.result.createObjectStore('meta',{keyPath:'id'})};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)})}
-function dbPut(store,value){return new Promise((resolve,reject)=>{const tx=db.transaction(store,'readwrite');tx.objectStore(store).put(value);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||Error('저장 중단'))})}
-function dbGet(store,id){return new Promise((resolve,reject)=>{const r=db.transaction(store).objectStore(store).get(id);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)})}
-async function saveLocal(){if(!db){$('saveState').textContent='자동저장 불가 · 원본 저장 필요';return}if(saving){saveTimer=setTimeout(saveLocal,500);return}saving=true;const text=JSON.stringify(doc),checksum=hash(text),id=doc.id;try{validateDoc(doc);const thumb=canvas(220,220*doc.h/doc.w);thumb.getContext('2d').drawImage(exportCanvas(true),0,0,thumb.width,thumb.height);const previous=await dbGet('projects',id);if(previous&&hash(previous.text)===previous.checksum)await dbPut('meta',{id:'backup:'+id,value:previous});await dbPut('projects',{id,name:doc.name,updated:Date.now(),text,checksum,thumb:thumb.toDataURL('image/jpeg',.6)});const verify=await dbGet('projects',id);if(verify.checksum!==hash(verify.text))throw Error('저장 검증 실패');await dbPut('meta',{id:'last',value:id});const current=JSON.stringify(doc)===text;if(current)dirty=false;$('saveState').textContent=(current?'자동저장됨 · ':'추가 변경 저장 대기 · ')+new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}catch(e){$('saveState').textContent='저장 실패 · 파일로 저장하세요';toast('자동저장 실패: '+e.message)}finally{saving=false}}
-async function initStore(){try{db=await openDB();const prefs=await dbGet('meta','preferences');if(prefs){document.body.classList.toggle('left',prefs.value.left);document.documentElement.style.setProperty('--hit',prefs.value.hit+'px');Object.assign(settings,{grid:prefs.value.grid,snap:prefs.value.snap,penOnly:prefs.value.penOnly})}const stamps=await dbGet('meta','stamps');if(stamps){customStamps=stamps.value;await Promise.all(customStamps.map(getAsset))}const last=await dbGet('meta','last');if(last){const r=await dbGet('projects',last.value);let recovered=r;if(r&&hash(r.text)!==r.checksum){const backup=await dbGet('meta','backup:'+last.value);recovered=backup?.value;if(!recovered||hash(recovered.text)!==recovered.checksum)throw Error('자동저장과 백업 검증 실패');toast('손상된 자동저장 대신 이전 정상 저장본을 복구합니다')}if(recovered){await loadDoc(JSON.parse(recovered.text));toast('마지막 정상 저장 작업을 복구했습니다');$('saveState').textContent='이전 작업 복구됨'}}}catch(e){$('saveState').textContent='자동저장 사용 불가';toast('자동저장이 제한된 환경입니다. 상단 저장으로 원본을 보관하세요.')}}
-window.addEventListener('beforeunload',e=>{if(dirty||live){e.preventDefault();e.returnValue=''}});document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&dirty)saveLocal()});
-function modal(html){$('modalBody').innerHTML=html;$('modalBody').querySelectorAll('[data-close]').forEach(b=>b.onclick=closeModal);if(!$('modal').open)$('modal').showModal()}
-function closeModal(){const p=$('exportPreview');if(p)p.removeAttribute('src');$('modal').close()}
-function stopMarble(){releaseMarbleWorker();if(marble?.compactAbort)marble.compactAbort(Error('마블링 취소'));if(marble?.compactWorker)marble.compactWorker.terminate();marblePointerId=null;shakeEnabled=false;window.removeEventListener('devicemotion',motion);cancelAnimationFrame(marbleRAF);marble=null;sensorEnabled=false;window.removeEventListener('deviceorientation',orientation)}
-function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function projectMenu(){modal(`<h2>내 작업실</h2><p class="note">${esc(doc.name)} · ${doc.w} × ${doc.h}px</p><div class="choices"><button id="newProject">새 캔버스</button><button id="galleryBtn">작품 보관함</button><button id="openProject">원본 열기</button><button id="importPhoto">사진 불러오기</button><button id="renameProject">작품 이름</button><button id="backupBtn">원본 저장</button></div><p class="note">자동저장은 현재 브라우저에 보관됩니다. 브라우저 데이터 삭제에 대비하여 .artstudio 원본 파일도 저장하세요.</p><div class="actions"><button data-close>닫기</button></div>`);$('newProject').onclick=newProjectDialog;$('galleryBtn').onclick=gallery;$('openProject').onclick=()=>{$('projectInput').value='';$('projectInput').click()};$('importPhoto').onclick=()=>{closeModal();importImage()};$('renameProject').onclick=()=>{modal(`<h2>작품 이름</h2><input id="nameInput" type="text" maxlength="80" value="${esc(doc.name)}"><div class="actions"><button data-close>취소</button><button id="nameOK" class="primary">저장</button></div>`);$('nameOK').onclick=()=>{checkpoint();doc.name=$('nameInput').value.trim()||'제목 없는 작품';changed();closeModal()}};$('backupBtn').onclick=saveFile}
-$('projectBtn').onclick=projectMenu;
-function newProjectDialog(){modal(`<h2>새 캔버스</h2><p class="note">기존 작업을 보관한 뒤 새로 시작합니다. A4는 150dpi 기준입니다.</p><div class="choices"><button data-size="1754,1240">A4 가로</button><button data-size="1240,1754">A4 세로</button><button data-size="1400,1400">정사각형</button></div><div class="rows"><label>너비 (px)<input id="newW" type="number" value="1400" min="32" max="8192"></label><label>높이 (px)<input id="newH" type="number" value="990" min="32" max="8192"></label><label>배경색<input id="newBG" type="color" value="#ffffff"></label><label><input id="transparentBG" type="checkbox">투명 배경</label></div><div class="actions"><button data-close>취소</button><button id="createCanvas" class="primary">새로 만들기</button></div>`);document.querySelectorAll('[data-size]').forEach(b=>b.onclick=()=>{[$('newW').value,$('newH').value]=b.dataset.size.split(',')});$('createCanvas').onclick=async()=>{const d={format:'ART-STUDIO',version:1,id:uid(),name:'제목 없는 작품',w:+$('newW').value,h:+$('newH').value,bg:$('transparentBG').checked?'transparent':$('newBG').value,objects:[],updated:Date.now()};try{validateDoc(d);if(dirty){await saveLocal();if(dirty&&!confirm('자동저장이 완료되지 않았습니다. 기존 작업을 파일로 저장하지 않고 새로 시작할까요?'))return}await loadDoc(d);changed();closeModal()}catch(e){toast(e.message)}}}
-async function gallery(){if(!db)return toast('이 환경에서는 작품 보관함을 사용할 수 없습니다');await saveLocal();const rs=await new Promise((res,rej)=>{const r=db.transaction('projects').objectStore('projects').getAll();r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});rs.sort((a,b)=>b.updated-a.updated);modal('<h2>작품 보관함</h2><p class="note">이 브라우저에 저장된 작품</p><div class="gallery" id="works"></div><div class="actions"><button data-close>닫기</button></div>');for(const r of rs){const div=document.createElement('div');div.className='work';const img=document.createElement('img');img.src=r.thumb;div.append(img);const strong=document.createElement('strong');strong.textContent=r.name;div.append(strong);const b=document.createElement('button');b.textContent='열기';b.onclick=async()=>{try{if(hash(r.text)!==r.checksum)throw Error('저장 데이터 손상');await loadDoc(JSON.parse(r.text));closeModal();await dbPut('meta',{id:'last',value:doc.id})}catch(e){toast(e.message)}};div.append(b);$('works').append(div)}}
-$('projectInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{if(f.size>90e6)throw Error('원본 파일이 너무 큽니다');const d=JSON.parse(await readFile(f,true));validateDoc(d);if(dirty)await saveLocal();await loadDoc(d);closeModal();changed();toast('원본을 불러왔습니다')}catch(err){toast(err.message)}};
-/* Shared output raster, native PDF serializer (JPEG page, no external dependency). */
-function exportCanvas(background=true,scale=1){
- const c=canvas(doc.w*scale,doc.h*scale),g=c.getContext('2d');
- if(scale===1){g.scale(scale,scale);if(background){g.fillStyle=doc.bg==='transparent'?'#ffffff':doc.bg;g.fillRect(0,0,doc.w,doc.h)}g.drawImage(board,0,0);return c}
- // Repaint vector strokes and shapes at the requested pixel resolution instead of upscaling the preview bitmap.
- // Keep eraser compositing on a transparent paint surface, then place the background underneath.
- const paintLayer=canvas(c.width,c.height),pg=paintLayer.getContext('2d');pg.scale(scale,scale);
- for(const o of doc.objects)drawObject(pg,o);
- if(background){g.fillStyle=doc.bg==='transparent'?'#ffffff':doc.bg;g.fillRect(0,0,c.width,c.height)}
- g.drawImage(paintLayer,0,0);paintLayer.width=paintLayer.height=1;return c
-}
-function download(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000)}
-function saveFile(){if(live?.kind==='shape'&&live.points?.length>=2)finishPolygon();const d=JSON.stringify(doc);download(new Blob([d],{type:'application/json'}),(doc.name||'ART_STUDIO')+'.artstudio');saveLocal();toast('재편집 가능한 원본 파일을 저장합니다')}$('saveBtn').onclick=saveFile;
-function outputDialog(print=false){modal(`<h2>${print?'인쇄 준비':'내보내기'}</h2><p class="note">원본 비율을 유지하며 출력합니다. PDF와 인쇄는 A4 한 장에 맞춥니다.</p><img id="exportPreview" alt="출력 미리보기"><div class="rows">${print?'<label>인쇄 해상도<select id="outPrintScale"><option value="1">원본 (100%)</option><option value="2" selected>고화질 (200%)</option><option value="3">초고화질 (300%)</option></select></label>':'<label>형식<select id="outFormat"><option>PNG</option><option>JPG</option><option>PDF</option></select></label><label>출력 해상도<select id="outScale"><option value="1">원본 크기</option><option value="0.5">50%</option><option value="2">200%</option></select></label><label>JPG / PDF 화질<select id="outQuality"><option value="0.92">높음 (92%)</option><option value="0.8">표준 (80%)</option><option value="1">최대 (100%)</option></select></label>'}<label>용지 방향<select id="outOrientation"><option value="landscape" ${doc.w>=doc.h?'selected':''}>A4 가로</option><option value="portrait" ${doc.w<doc.h?'selected':''}>A4 세로</option></select></label><label>여백 (mm)<input id="outMargin" type="number" min="0" max="40" value="10"></label><label><input id="outBG" type="checkbox" checked>배경 포함</label></div><p class="note">PNG는 배경 제외 시 투명도를 보존합니다. JPG·PDF·인쇄의 투명 부분은 흰색입니다.</p><div class="actions"><button data-close>닫기</button><button id="outputGo" class="primary">${print?'인쇄 미리보기 열기':'파일 저장'}</button></div>`);outputPreview();for(const id of ['outBG','outOrientation','outMargin','outFormat'])if($(id))$(id).oninput=outputPreview;$('outputGo').onclick=async()=>{try{const scale=print?+$('outPrintScale').value:+$('outScale').value;if(doc.w*doc.h*scale*scale>20e6)throw Error('출력 크기가 2000만 화소를 초과합니다. 해상도를 낮춰주세요');const c=exportCanvas($('outBG').checked,scale),format=print?'PRINT':$('outFormat').value,orientation=$('outOrientation').value,margin=clamp(+$('outMargin').value||0,0,40);if(format==='PRINT'){printCanvas(c,orientation,margin);return}if(format==='PDF'){download(makePDF(c,orientation,margin,+$('outQuality').value),doc.name+'.pdf')}else{if(format==='JPG'){const g=c.getContext('2d');g.globalCompositeOperation='destination-over';g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height)}c.toBlob(b=>download(b,doc.name+(format==='PNG'?'.png':'.jpg')),format==='PNG'?'image/png':'image/jpeg',+$('outQuality').value)}toast('내보내기 파일을 저장합니다')}catch(e){toast(e.message)}}}
-function pageLayout(w,h,orientation,margin){const pw=orientation==='landscape'?297:210,ph=orientation==='landscape'?210:297,m=clamp(margin,0,40),scale=Math.min((pw-2*m)/w,(ph-2*m)/h);return{pw,ph,x:(pw-w*scale)/2,y:(ph-h*scale)/2,w:w*scale,h:h*scale}}
-function outputPreview(){const paged=!$('outFormat')||$('outFormat').value==='PDF';$('outOrientation').disabled=!paged;$('outMargin').disabled=!paged;if(!paged){$('exportPreview').src=exportCanvas($('outBG').checked).toDataURL();return}const p=pageLayout(doc.w,doc.h,$('outOrientation').value,+$('outMargin').value||0),c=canvas(p.pw*2,p.ph*2),g=c.getContext('2d');g.fillStyle='white';g.fillRect(0,0,c.width,c.height);g.drawImage(exportCanvas($('outBG').checked),p.x*2,p.y*2,p.w*2,p.h*2);$('exportPreview').src=c.toDataURL()}
-function makePDF(c,orientation,margin,quality){const flat=canvas(c.width,c.height),fg=flat.getContext('2d');fg.fillStyle='#fff';fg.fillRect(0,0,c.width,c.height);fg.drawImage(c,0,0);c=flat;const jpg=atob(c.toDataURL('image/jpeg',quality).split(',')[1]),layout=pageLayout(c.width,c.height,orientation,margin),pw=layout.pw*72/25.4,ph=layout.ph*72/25.4,w=layout.w*72/25.4,h=layout.h*72/25.4,x=layout.x*72/25.4,y=layout.y*72/25.4,stream=`q\n${w.toFixed(3)} 0 0 ${h.toFixed(3)} ${x.toFixed(3)} ${y.toFixed(3)} cm\n/Im0 Do\nQ\n`;let s='%PDF-1.4\n',offsets=[0];function obj(n,t){offsets[n]=s.length;s+=`${n} 0 obj\n${t}\nendobj\n`}obj(1,'<< /Type /Catalog /Pages 2 0 R >>');obj(2,'<< /Type /Pages /Kids [3 0 R] /Count 1 >>');obj(3,`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pw} ${ph}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>`);obj(4,`<< /Type /XObject /Subtype /Image /Width ${c.width} /Height ${c.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpg.length} >>\nstream\n${jpg}\nendstream`);obj(5,`<< /Length ${stream.length} >>\nstream\n${stream}endstream`);const start=s.length;s+='xref\n0 6\n0000000000 65535 f \n';for(let i=1;i<=5;i++)s+=String(offsets[i]).padStart(10,'0')+' 00000 n \n';s+=`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${start}\n%%EOF`;return new Blob([Uint8Array.from(s,ch=>ch.charCodeAt(0))],{type:'application/pdf'})}
-// The print image is temporary and must be dropped after the native print dialog.
-let printCleanupTimer=null,printRun=0;
-function cleanupPrintResource(){
- clearTimeout(printCleanupTimer);printCleanupTimer=null;
- const root=$('printRoot');for(const im of root.querySelectorAll('img')){im.onload=null;im.onerror=null;im.removeAttribute('src');}
- root.replaceChildren();
-}
-window.addEventListener('afterprint',()=>{cleanupPrintResource()});
-window.addEventListener('pagehide',cleanupPrintResource);
-function printCanvas(c,orientation,margin){
- const run=++printRun;cleanupPrintResource();
- let style=$('printStyle');if(!style){style=document.createElement('style');style.id='printStyle';document.head.append(style)}
- style.textContent=`@media print{@page{size:A4 ${orientation};margin:${margin}mm}#printRoot{height:${(orientation==='landscape'?210:297)-margin*2-1}mm}}`;
- const im=new Image();im.onload=()=>{if(run!==printRun)return;closeModal();requestAnimationFrame(()=>{try{window.print()}catch(e){toast('인쇄를 시작할 수 없습니다: '+e.message);cleanupPrintResource()}})};
- im.onerror=()=>{toast('인쇄 이미지 준비 실패');cleanupPrintResource()};
- try{im.src=c.toDataURL();$('printRoot').append(im)}finally{c.width=c.height=1}
- // Some embedded file viewers do not fire `afterprint`; this is a fallback,
- // deliberately delayed so that a slow print dialog is not cut off.
- printCleanupTimer=setTimeout(()=>{if(run===printRun)cleanupPrintResource()},120000);
-}
-$('exportBtn').onclick=()=>outputDialog();$('printBtn').onclick=()=>outputDialog(true);
-function settingsDialog(){modal(`<h2>작업실 설정</h2><p class="note">실행 환경: ${location.protocol==='file:'?'로컬 파일 · 저장 지원은 브라우저별로 다릅니다. 원본 파일을 함께 보관하세요.':(window.isSecureContext?'보안 컨텍스트 · 이 브라우저 저장소 사용':'HTTP · 센서 권한이 제한될 수 있습니다.')}</p><div class="rows"><label>주로 쓰는 손<select id="hand"><option value="right">오른손 · 왼쪽 도구바</option><option value="left" ${document.body.classList.contains('left')?'selected':''}>왼손 · 오른쪽 도구바</option></select></label><label>버튼 크기<select id="hitSize"><option value="48">기본 48px</option><option value="56">크게 56px</option><option value="64">매우 크게 64px</option></select></label><label><input id="gridSetting" type="checkbox" ${settings.grid?'checked':''}>격자 표시</label><label><input id="snapSetting" type="checkbox" ${settings.snap?'checked':''}>25px 격자 스냅</label><label><input id="penSetting" type="checkbox" ${settings.penOnly?'checked':''}>펜 전용 (손가락 입력 차단)</label></div><p class="note">일반 정전식 터치펜은 손가락으로 인식되므로 펜 전용을 끄세요. 터치펜 입력 중 터치는 무시하지만 기기별 팜리젝션은 실기기 확인이 필요합니다.</p><div class="actions"><button data-close>닫기</button><button id="settingsApply" class="primary">적용</button></div>`);$('hitSize').value=getComputedStyle(document.documentElement).getPropertyValue('--hit').trim().replace('px','');$('settingsApply').onclick=()=>{document.body.classList.toggle('left',$('hand').value==='left');document.documentElement.style.setProperty('--hit',$('hitSize').value+'px');settings.grid=$('gridSetting').checked;settings.snap=$('snapSetting').checked;settings.penOnly=$('penSetting').checked;if(db)dbPut('meta',{id:'preferences',value:{left:document.body.classList.contains('left'),hit:$('hitSize').value,grid:settings.grid,snap:settings.snap,penOnly:settings.penOnly}}).catch(()=>toast('설정 저장 실패'));closeModal();resize();paint()}}$('settingsBtn').onclick=settingsDialog;
-document.addEventListener('keydown',e=>{if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)||$('modal').open)return;if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo()}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();saveFile()}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='c'){const o=objectById();if(o){copyBuffer=clone(o);toast('선택 객체를 복사했습니다')}}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='v'&&copyBuffer){checkpoint();const o=clone(copyBuffer);o.id=uid();o.x+=24;o.y+=24;doc.objects.push(o);selected=o.id;changed()}if(e.key==='Delete'||e.key==='Backspace'){if(selected){e.preventDefault();contextAction('delete')}}if(e.key==='Escape'){cancelEffect();selected=null;live=null;$('panel').hidden=true;paint()}if(e.key==='Enter')finishPolygon()});
-/* Validation: isolated tests do not mutate the current artwork. */
-async function selfTest(){const results=[];const test=(name,f)=>{try{f();results.push('PASS · '+name)}catch(e){results.push('FAIL · '+name+' — '+e.message)}};const assert=(v,s='조건 불일치')=>{if(!v)throw Error(s)};
-test('프로젝트 JSON 왕복 / 형식 검증',()=>{const d=clone(doc);validateDoc(d);assert(JSON.stringify(d)===JSON.stringify(doc))});
-test('잘못된 파일 버전 거부',()=>{let rejected=false;try{validateDoc({...doc,version:999})}catch(e){rejected=true}assert(rejected)});
-test('과대 캔버스 거부',()=>{let rejected=false;try{validateDoc({...doc,w:9000})}catch(e){rejected=true}assert(rejected)});
-test('뷰포트 ↔ 그림 좌표 왕복',()=>{for(const p of [{x:0,y:0},{x:183.25,y:726.5},{x:doc.w,y:doc.h}]){const q=toDoc(camera.x+p.x*camera.z,camera.y+p.y*camera.z);assert(Math.abs(q.x-p.x)<1e-7&&Math.abs(q.y-p.y)<1e-7)}});
-test('임의 각도 반전의 2회 적용 = 원위치',()=>{for(const b of [{x:0,y:100},{x:100,y:0},{x:83,y:47}]){const m=reflectionMatrix({x:13,y:17},b),f=p=>({x:m[0]*p.x+m[2]*p.y+m[4],y:m[1]*p.x+m[3]*p.y+m[5]}),p={x:84,y:127},q=f(f(p));assert(Math.hypot(q.x-p.x,q.y-p.y)<1e-7)}});
-test('브러시 권장값 유효성',()=>{for(const [name,p] of Object.entries(brushProfiles))assert(p.size>=1&&p.size<=160&&p.alpha>0&&p.alpha<=1,name)});
-test('색상 사용 도구별 활성 상태',()=>{const before={tool,brush:settings.brush,effect:settings.effect};try{tool='select';assert(!colorControlsActive());tool='eraser';assert(!colorControlsActive());tool='shape';assert(colorControlsActive());tool='draw';settings.brush='smudge';assert(!colorControlsActive());settings.brush='brush';assert(colorControlsActive());tool='effects';settings.effect='copy';assert(!colorControlsActive());settings.effect='tile';assert(colorControlsActive())}finally{tool=before.tool;settings.brush=before.brush;settings.effect=before.effect}});
-test('붓 알파 중첩 방지 및 연속 선',()=>{const c=canvas(120,60),g=c.getContext('2d');drawStroke(g,{brush:'brush',points:[{x:15,y:30,p:.5},{x:45,y:30,p:.5},{x:75,y:30,p:.5},{x:100,y:30,p:.5}],color:'#ff0000',alpha:.5,size:20,pressure:false});const a=g.getImageData(35,30,1,1).data[3],b=g.getImageData(45,30,1,1).data[3];assert(Math.abs(a-b)<=1&&a>=125&&a<=129,'연결 지점이 과도하게 진해짐 '+a+' '+b)});
-test('필압 붓과 필압 펜 연속성',()=>{for(const brush of ['brush','pen','eraser']){const c=canvas(140,65),g=c.getContext('2d');g.fillStyle='#335577';g.fillRect(0,0,140,65);drawStroke(g,{brush,points:[{x:12,y:32,p:.3},{x:40,y:31,p:.6},{x:75,y:29,p:.9},{x:120,y:32,p:.6}],color:'#f00',alpha:.8,size:22,pressure:true});const d=g.getImageData(70,30,1,1).data;assert(brush==='eraser'?d[3]<255:d[0]>51,brush+' 필압 경로 미적용')}});
-
-test('에어브러시 기본 농도와 원터치 가시성',()=>{
- const c=canvas(160,90),g=c.getContext('2d');
- drawStroke(g,{brush:'airbrush',points:[{x:80,y:45,p:.5}],color:'#0284c7',size:50,alpha:.5,pressure:false});
- const a=g.getImageData(80,45,1,1).data[3];
- assert(a>=25&&a<255,'에어브러시 한 번 찍기 불투명도 비정상: '+a);
-});
-test('에어브러시 빠른 획 연결과 농도 반영',()=>{
- const op={brush:'airbrush',points:[{x:20,y:45,p:.5},{x:160,y:45,p:.5}],color:'#0284c7',size:50,pressure:false};
- const c=canvas(190,90),g=c.getContext('2d');drawStroke(g,{...op,alpha:.5});
- const mid=g.getImageData(90,45,1,1).data[3];assert(mid>45,'빠른 선 이동 시 가운데 분사가 끊김: '+mid);
- const d=canvas(190,90),h=d.getContext('2d');drawStroke(h,{...op,alpha:.1});
- assert(h.getImageData(90,45,1,1).data[3]<mid,'농도 조절이 에어브러시에 반영되지 않음');
-});
-test('팔레트 색상 코드',()=>{assert(palette.length>=18);for(const group of Object.values(extraColorGroups))for(const c of group)assert(/^#[0-9a-f]{6}$/i.test(c),c)});
-test('빠른 색상 20개 스와이프와 표시',()=>{const p=$('palette');assert(p.children.length===20);assert(getComputedStyle(p).overflowX==='auto');assert([...p.children].every(e=>getComputedStyle(e).display!=='none'))});
-test('붓 / 지우개 합성',()=>{const c=canvas(60,60),g=c.getContext('2d');drawStroke(g,{points:[{x:30,y:30,p:.5}],size:20,color:'#ff0000',alpha:1,brush:'pen'});assert(g.getImageData(30,30,1,1).data[0]===255);drawStroke(g,{points:[{x:30,y:30,p:.5}],size:20,color:'#000000',alpha:1,brush:'eraser'});assert(g.getImageData(30,30,1,1).data[3]===0)});
-test('13종 기본 도형 경로 생성',()=>{const g=canvas(100,100).getContext('2d');g.translate(50,50);for(const t of ['line','rect','round','circle','ellipse','triangle','diamond','pentagon','hexagon','star','arrow','heart','bubble']){pathShape(g,t,50,40);g.fill();g.stroke()}});
-test('24종 기본 스탬프 렌더링·고유 이름',()=>{
- assert(builtInStamps.length===24);
- assert(new Set(builtInStamps.map(([id])=>id)).size===24);
- assert(new Set(builtInStamps.map(([,name])=>name)).size===24);
- const signatures=[];
- for(const [name] of builtInStamps){
-  const c=canvas(100,100),g=c.getContext('2d');g.translate(50,50);stampArt(g,name,80,80,'#0284c7');
-  const data=g.getImageData(0,0,100,100).data;
-  const pixels=data.reduce((n,v,i)=>n+(i%4===3&&v>20?1:0),0);
-  assert(pixels>50,name+' 스탬프가 제대로 그려지지 않음');
-  // Coarse alpha grid avoids classifying only a color change as distinct art.
-  const signature=[];for(let y=0;y<10;y++)for(let x=0;x<10;x++)signature.push(data[((y*10+5)*100+(x*10+5))*4+3]>20?'1':'0');
-  signatures.push(signature.join(''));
- }
- assert(new Set(signatures).size>=22,'기본 스탬프가 서로 지나치게 유사');
-});
-test('4종 모자이크 타일 렌더링',()=>{for(const t of ['square','triangle','circle','paper']){const c=canvas(80,80),g=c.getContext('2d');tilePath(g,40,40,40,t);assert(g.getImageData(40,40,1,1).data[3]>0)}});
-test('투명 / 배경 출력 해상도',()=>{const c=exportCanvas(false,.5);assert(c.width===Math.round(doc.w*.5)&&c.height===Math.round(doc.h*.5));assert(exportCanvas(true).getContext('2d').getImageData(0,0,1,1).data[3]===255)});
-test('투명 캔버스 채우기: 외부 투명도 보존',()=>{const w=9,h=7,match=new Uint8ClampedArray(w*h*4),dest=new Uint8ClampedArray(w*h*4);for(let y=0;y<h;y++){const i=(y*w+4)*4;match[i+3]=255;dest[i+3]=255}const n=floodPixels(match,dest,w,h,1,2,[255,0,0],.5,0);assert(n===28);assert(dest[(2*w+1)*4]===255&&dest[(2*w+1)*4+3]===128);assert(dest[(2*w+7)*4+3]===0)});
-test('페인트통 가장자리 입력 / 전체 영역',()=>{const w=30,h=20,a=new Uint8ClampedArray(w*h*4),d=new Uint8ClampedArray(a);assert(floodPixels(a,d,w,h,w,h,[0,100,200],1,0)===w*h);assert(d[3]===255&&d.at(-1)===255)});
-test('페인트통 허용차 및 닫힌 경계',()=>{const w=5,h=5,a=new Uint8ClampedArray(w*h*4),d=new Uint8ClampedArray(a);for(let i=0;i<a.length;i+=4){a[i]=100;a[i+3]=255}for(let x=0;x<w;x++)a[(2*w+x)*4]=200;assert(floodPixels(a,d,w,h,1,0,[1,2,3],1,20)===10)});
-test('두 손가락 버퍼와 기존 경로의 픽셀 일치',()=>{const ps=[[{x:5,y:5},{x:35,y:5},{x:35,y:35},{x:5,y:35}],[{x:35,y:5},{x:5,y:5},{x:5,y:20},{x:35,y:20}]];const saved=ribbonBuffer;ribbonBuffer=null;createRibbonBuffer();ps.forEach(appendRibbonQuad);const actual=renderRibbonBuffer().getContext('2d').getImageData(0,0,50,50).data,c=canvas(doc.w,doc.h),g=c.getContext('2d');g.fillStyle=settings.color;g.globalAlpha=settings.alpha;g.beginPath();for(const points of ps){points.forEach((p,i)=>g[i?'lineTo':'moveTo'](p.x,p.y));g.closePath()}g.fill();const expected=g.getImageData(0,0,50,50).data;assert(actual.every((v,i)=>v===expected[i]));releaseRibbonBuffer();ribbonBuffer=saved});
-test('두 손가락 지우개 마스크·원본 보존·저장 검사',()=>{
- const save=ribbonBuffer;ribbonBuffer=null;
- try{
-  const c=canvas(doc.w,doc.h),g=c.getContext('2d');g.fillStyle='#e11d48';g.fillRect(0,0,doc.w,doc.h);
-  const x0=Math.max(1,Math.floor(doc.w*.08)),x1=Math.max(x0+2,Math.floor(doc.w*.55));
-  const y0=Math.max(1,Math.floor(doc.h*.08)),y1=Math.max(y0+2,Math.floor(doc.h*.55));
-  const xi=Math.floor((x0+x1)/2),yi=Math.floor((y0+y1)/2);
-  const xo=doc.w-2,yo=doc.h-2;
-  createRibbonBuffer('erase');appendRibbonQuad([{x:x0,y:y0},{x:x1,y:y0},{x:x1,y:y1},{x:x0,y:y1}]);
-  const preview=renderRibbonErasePreview();
-  assert(preview.getContext('2d').getImageData(xi,yi,1,1).data[3]===0,'미리보기는 해당 영역을 제거');
-  const mask=finishRibbon('erase');validateDoc({...doc,objects:[mask]});
-  const old=doc;try{doc={...doc,w:doc.w,h:doc.h};drawObject(g,mask)}finally{doc=old}
-  assert(g.getImageData(xi,yi,1,1).data[3]===0,'지운 영역이 투명해지지 않음');
-  assert(g.getImageData(xo,yo,1,1).data[3]===255,'지우개 밖 영역 손상');
-  assets.delete(mask.src);
- }finally{releaseRibbonBuffer();ribbonBuffer=save}
-});
-test('파스텔 문지르기: 색소가 이동하고 다른 색과 섞임',()=>{
- const save={boardPixels:ctx.getImageData(0,0,80,50),size:settings.size,alpha:settings.alpha};
- try{
-  ctx.clearRect(0,0,80,50);ctx.fillStyle='#e11d48';ctx.fillRect(20,8,18,28);
-  ctx.fillStyle='#2563eb';ctx.fillRect(38,8,18,28);
-  settings.size=20;settings.alpha=.8;

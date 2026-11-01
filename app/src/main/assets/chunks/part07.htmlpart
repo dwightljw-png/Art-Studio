@@ -1,3 +1,217 @@
+async function undo(){if(live||drag||pointerMap.size)return;cancelEffect();if(!history.length)return;future.push(JSON.stringify(doc));await loadDoc(JSON.parse(history.pop()),false);dirty=true;saveTimer=setTimeout(saveLocal,400);updateUndo()}
+async function redo(){if(live||drag||pointerMap.size)return;if(!future.length)return;history.push(JSON.stringify(doc));await loadDoc(JSON.parse(future.pop()),false);dirty=true;saveTimer=setTimeout(saveLocal,400);updateUndo()}
+function pathShape(g,type,w,h){g.beginPath();if(type==='rect')g.rect(-w/2,-h/2,w,h);else if(type==='round')g.roundRect(-w/2,-h/2,w,h,Math.min(w,h)*.18);else if(type==='ellipse'||type==='circle')g.ellipse(0,0,w/2,h/2,0,0,Math.PI*2);else if(type==='line'){g.moveTo(-w/2,-h/2);g.lineTo(w/2,h/2)}else if(type==='heart'){g.moveTo(0,h*.48);g.bezierCurveTo(-w*.9,-h*.05,-w*.45,-h*.85,0,-h*.22);g.bezierCurveTo(w*.45,-h*.85,w*.9,-h*.05,0,h*.48)}else if(type==='arrow'){g.moveTo(-w/2,-h*.17);g.lineTo(w*.1,-h*.17);g.lineTo(w*.1,-h/2);g.lineTo(w/2,0);g.lineTo(w*.1,h/2);g.lineTo(w*.1,h*.17);g.lineTo(-w/2,h*.17);g.closePath()}else if(type==='bubble'){g.roundRect(-w/2,-h/2,w,h*.8,Math.min(w,h)*.12);g.moveTo(-w*.15,h*.3);g.lineTo(-w*.25,h*.5);g.lineTo(w*.1,h*.3)}else{const n={triangle:3,diamond:4,pentagon:5,hexagon:6,star:10}[type]||4;for(let i=0;i<n;i++){let r=type==='star'&&i%2?.43:1,a=-Math.PI/2+i*Math.PI*2/n;g[i?'lineTo':'moveTo'](Math.cos(a)*w*.5*r,Math.sin(a)*h*.5*r)}g.closePath()}}
+const builtInStamps=[
+ ['flower','꽃'],['leaf','잎'],['tree','나무'],['sun','태양'],['cloud','구름'],['cat','고양이'],
+ ['fish','물고기'],['butterfly','나비'],['car','자동차'],['boat','배'],['sparkle','별'],['heart','하트'],
+ ['dog','강아지'],['rabbit','토끼'],['owl','부엉이'],['mountain','산'],['rainbow','무지개'],
+ ['mushroom','버섯'],['house','집'],['rocket','로켓'],['bicycle','자전거'],
+ ['cupcake','컵케이크'],['gift','선물'],['snowman','눈사람']
+];
+const builtInExtraNames=new Set(builtInStamps.slice(12).map(([key])=>key));
+// Additional built-in stamps (v1.6.8). Each uses the same document-space
+// vector coordinates as the twelve original stamps (roughly -50..50).
+function stampArtExtra(g,name,color){
+ const ink='#334155',white='#ffffff',pink='#fda4af',gold='#fbbf24';
+ const oval=(x,y,rx,ry,c=color)=>{g.fillStyle=c;g.beginPath();g.ellipse(x,y,rx,ry,0,0,Math.PI*2);g.fill()};
+ const path=(points,fill=color,stroke=null)=>{g.beginPath();points.forEach(([x,y],i)=>g[i?'lineTo':'moveTo'](x,y));g.closePath();if(fill){g.fillStyle=fill;g.fill()}if(stroke){g.strokeStyle=stroke;g.stroke()}};
+ const curve=(draw,fill=color,stroke=null)=>{g.beginPath();draw(g);if(fill){g.fillStyle=fill;g.fill()}if(stroke){g.strokeStyle=stroke;g.stroke()}};
+ g.lineWidth=2.8;g.lineCap='round';g.lineJoin='round';
+ if(name==='dog'){
+  oval(0,8,28,24);curve(g=>{g.moveTo(-25,-3);g.quadraticCurveTo(-37,-24,-23,-33);g.quadraticCurveTo(-10,-29,-12,-10);g.closePath()},color);curve(g=>{g.moveTo(25,-3);g.quadraticCurveTo(37,-24,23,-33);g.quadraticCurveTo(10,-29,12,-10);g.closePath()},color);
+  oval(-10,3,7,9,white);oval(10,3,7,9,white);oval(-9,5,2.8,3.6,ink);oval(9,5,2.8,3.6,ink);
+  oval(0,17,14,11,'#fff7ed');oval(0,15,6,5,ink);g.strokeStyle=ink;g.lineWidth=3;g.beginPath();g.moveTo(-10,22);g.quadraticCurveTo(-4,27,0,23);g.quadraticCurveTo(4,27,10,22);g.stroke();oval(-16,15,3,2,'#fca5a5');oval(16,15,3,2,'#fca5a5');
+ }else if(name==='rabbit'){
+  curve(g=>{g.moveTo(-20,-7);g.quadraticCurveTo(-28,-41,-15,-45);g.quadraticCurveTo(-4,-43,-6,-12);g.closePath()},color,ink);curve(g=>{g.moveTo(20,-7);g.quadraticCurveTo(28,-41,15,-45);g.quadraticCurveTo(4,-43,6,-12);g.closePath()},color,ink);
+  curve(g=>{g.moveTo(-15,-11);g.quadraticCurveTo(-20,-34,-12,-36);g.quadraticCurveTo(-6,-34,-8,-13);g.closePath()},pink);curve(g=>{g.moveTo(15,-11);g.quadraticCurveTo(20,-34,12,-36);g.quadraticCurveTo(6,-34,8,-13);g.closePath()},pink);
+  curve(g=>{g.ellipse(0,14,30,26,0,0,Math.PI*2)},color,ink);oval(-10,10,3.5,4.5,ink);oval(10,10,3.5,4.5,ink);oval(0,21,5.5,4.5,pink);g.strokeStyle=ink;g.lineWidth=3;g.beginPath();g.moveTo(0,24);g.lineTo(0,29);g.moveTo(-9,29);g.quadraticCurveTo(-3,35,0,30);g.quadraticCurveTo(3,35,9,29);g.stroke();oval(-15,21,3.5,2.2,'#fbcfe8');oval(15,21,3.5,2.2,'#fbcfe8');
+ }else if(name==='owl'){
+  curve(g=>{g.moveTo(-30,-7);g.lineTo(-20,-28);g.lineTo(-6,-20);g.quadraticCurveTo(0,-30,6,-20);g.lineTo(20,-28);g.lineTo(30,-7);g.quadraticCurveTo(35,28,0,40);g.quadraticCurveTo(-35,28,-30,-7);g.closePath()},color);
+  oval(-11,-1,12,13,white);oval(11,-1,12,13,white);oval(-11,0,4.5,5.5,ink);oval(11,0,4.5,5.5,ink);oval(-12,-1.5,1.4,1.6,white);oval(10,-1.5,1.4,1.6,white);
+  path([[-6,12],[6,12],[0,21]],gold);oval(-18,16,4,3,'#93c5fd');oval(18,16,4,3,'#93c5fd');g.strokeStyle=ink;g.lineWidth=3;g.beginPath();g.moveTo(-8,34);g.lineTo(-8,41);g.moveTo(8,34);g.lineTo(8,41);g.stroke();
+ }else if(name==='mountain'){
+  // v2.0.4: main and shaded peaks use the selected stamp color, not fixed blues.
+  // White snow and the existing vector contours remain unchanged.
+  const mixPeak=(target,weight)=>{
+   const a=/^#[0-9a-f]{6}$/i.test(color)?color:'#0284c7';
+   const component=i=>Math.round(parseInt(a.slice(i,i+2),16)*(1-weight)+parseInt(target.slice(i,i+2),16)*weight).toString(16).padStart(2,'0');
+   return '#'+component(1)+component(3)+component(5);
+  };
+  path([[-46,38],[-20,-18],[-6,-2],[10,-24],[28,5],[46,38]],mixPeak('#ffffff',.16));
+  path([[-28,38],[-6,-10],[10,38]],mixPeak('#293c51',.22));
+  path([[0,38],[18,-18],[40,38]],mixPeak('#293c51',.22));
+  path([[-14,-4],[-6,-10],[2,2],[-6,0]],white);
+  path([[11,-9],[18,-18],[26,-5],[18,-8]],white);
+  oval(-30,12,9,5,white);oval(-22,8,7,6,white);oval(-12,12,8,5,white);oval(27,9,9,5,white);oval(19,5,7,6,white);oval(10,9,8,5,white);
+  g.strokeStyle='#64748b';g.lineWidth=2.6;g.beginPath();g.moveTo(-46,39);g.lineTo(46,39);g.stroke();
+ }else if(name==='rainbow'){
+  // v1.6.11: clean standalone six-color rainbow. No white cloud masks or
+  // detached center ellipse: each band is drawn in full, including both ends.
+  // Smooth rounded caps mean the arches do not look cropped on white paper.
+  const bands=['#fb7185','#fb923c','#facc15','#4ade80','#38bdf8','#818cf8'];
+  g.lineCap='round';
+  bands.forEach((c,i)=>{
+   g.beginPath();g.arc(0,25,39-i*6.15,Math.PI,2*Math.PI);
+   g.strokeStyle=c;g.lineWidth=6.0;g.stroke();
+  });
+ }else if(name==='mushroom'){
+  g.fillStyle='#f8e7c0';g.beginPath();g.roundRect(-12,-1,24,40,10);g.fill();
+  curve(g=>{g.moveTo(-40,2);g.quadraticCurveTo(-33,-33,0,-35);g.quadraticCurveTo(33,-33,40,2);g.quadraticCurveTo(20,10,0,9);g.quadraticCurveTo(-20,10,-40,2);g.closePath()},color);
+  for(const [x,y,r] of [[-18,-12,5],[0,-20,7],[18,-10,5],[-2,-3,4]])oval(x,y,r,r,white);
+  oval(-5,13,2.8,3.4,ink);oval(5,13,2.8,3.4,ink);oval(0,22,5,3,'#f59e0b');g.strokeStyle=ink;g.lineWidth=2.5;g.beginPath();g.moveTo(-8,25);g.quadraticCurveTo(0,30,8,25);g.stroke();
+ }else if(name==='house'){
+  g.fillStyle=color;g.fillRect(-28,-6,56,45);path([[-38,-6],[0,-34],[38,-6]],'#fda4af');g.fillStyle=white;g.fillRect(-20,4,14,13);g.fillRect(6,4,14,13);g.fillStyle='#a16207';g.fillRect(-7,14,14,25);oval(3,27,1.6,1.6,gold);g.fillStyle='#86efac';g.fillRect(-36,39,72,5);g.strokeStyle=ink;g.lineWidth=2.5;g.strokeRect(-28,-6,56,45);
+ }else if(name==='rocket'){
+  curve(g=>{g.moveTo(0,-47);g.bezierCurveTo(33,-25,23,11,14,24);g.lineTo(-14,24);g.bezierCurveTo(-23,11,-33,-25,0,-47);g.closePath()},white,ink);
+  curve(g=>{g.moveTo(0,-47);g.quadraticCurveTo(10,-39,15,-24);g.lineTo(-15,-24);g.quadraticCurveTo(-10,-39,0,-47);g.closePath()},color);
+  oval(0,-8,10,10,'#93c5fd');oval(0,-8,6,6,white);
+  path([[-13,10],[-33,32],[-13,27]],color);
+  path([[13,10],[33,32],[13,27]],color);
+  path([[-8,25],[0,47],[8,25]],gold);
+ }else if(name==='bicycle'){
+  g.strokeStyle=ink;g.lineWidth=4;for(const x of [-32,32]){g.beginPath();g.arc(x,23,15,0,Math.PI*2);g.stroke()}
+  g.strokeStyle=color;g.lineWidth=4;g.beginPath();g.moveTo(-32,23);g.lineTo(-10,-4);g.lineTo(7,23);g.lineTo(-32,23);g.lineTo(19,-4);g.lineTo(32,23);g.stroke();
+  g.strokeStyle=ink;g.lineWidth=3;g.beginPath();g.moveTo(-19,-5);g.lineTo(-3,-5);g.moveTo(13,-7);g.lineTo(28,-7);g.moveTo(19,-4);g.lineTo(14,-17);g.lineTo(23,-17);g.stroke();
+ }else if(name==='cupcake'){
+  path([[-27,4],[27,4],[20,39],[-20,39]],'#60a5fa');
+  curve(g=>{g.moveTo(-31,5);g.bezierCurveTo(-38,-8,-24,-20,-15,-14);g.bezierCurveTo(-15,-28,3,-30,10,-20);g.bezierCurveTo(25,-28,38,-9,31,5);g.closePath()},color);
+  oval(5,-27,5,5,'#ef4444');g.strokeStyle=white;g.lineWidth=3;for(const x of [-12,0,12]){g.beginPath();g.moveTo(x,10);g.lineTo(x+2,31);g.stroke()}oval(-5,-21,2.2,2.2,white);oval(16,-17,2.2,2.2,white);
+ }else if(name==='gift'){
+  g.fillStyle=color;g.fillRect(-34,-4,68,48);g.fillStyle='#ffffff';g.fillRect(-6,-4,12,48);g.fillStyle=color;g.fillRect(-39,-16,78,15);g.fillStyle='#ffffff';g.fillRect(-6,-16,12,15);
+  curve(g=>{g.moveTo(0,-16);g.bezierCurveTo(-35,-15,-33,-42,-14,-39);g.bezierCurveTo(-1,-36,0,-16,0,-16);g.closePath()},'#f9a8d4');curve(g=>{g.moveTo(0,-16);g.bezierCurveTo(35,-15,33,-42,14,-39);g.bezierCurveTo(1,-36,0,-16,0,-16);g.closePath()},'#f9a8d4');oval(0,-22,3,3,'#f472b6');
+ }else if(name==='snowman'){
+  oval(0,16,24,25,white);oval(0,-20,19,19,white);g.strokeStyle=ink;g.lineWidth=2.3;g.beginPath();g.arc(0,16,24,0,2*Math.PI);g.stroke();g.beginPath();g.arc(0,-20,19,0,2*Math.PI);g.stroke();
+  oval(-6,-23,2.4,2.4,ink);oval(6,-23,2.4,2.4,ink);path([[0,-19],[12,-16],[0,-14]],'#fb923c');for(const y of [8,18,28])oval(0,y,2.5,2.5,ink);
+  g.fillStyle=color;g.fillRect(-19,-41,38,7);g.fillRect(-12,-54,24,13);g.strokeStyle='#9a6c44';g.lineWidth=3;g.beginPath();g.moveTo(-21,8);g.lineTo(-36,-2);g.moveTo(21,8);g.lineTo(36,-2);g.stroke();oval(-13,-10,3,2,'#fbcfe8');oval(13,-10,3,2,'#fbcfe8');
+ }
+}
+
+function stampArt(g,name,w,h,color){g.save();g.scale(w/100,h/100);g.lineWidth=3;g.strokeStyle=color;g.fillStyle=color;g.lineJoin='round';const ellipse=(x,y,a,b,c=color)=>{g.fillStyle=c;g.beginPath();g.ellipse(x,y,a,b,0,0,Math.PI*2);g.fill()};
+if(name==='flower'){g.strokeStyle='#538260';g.beginPath();g.moveTo(0,8);g.quadraticCurveTo(-6,30,0,48);g.stroke();ellipse(10,30,13,6,'#72a879');for(let i=0;i<6;i++){let a=i*Math.PI/3;ellipse(Math.cos(a)*20,Math.sin(a)*20-12,13,13)}ellipse(0,-12,10,10,'#facc15')}
+else if(name==='leaf'){g.beginPath();g.moveTo(-30,37);g.bezierCurveTo(-55,-15,-5,-45,35,-40);g.bezierCurveTo(48,5,12,42,-30,37);g.fill();g.strokeStyle='#fff9';g.beginPath();g.moveTo(-30,37);g.lineTo(27,-32);g.stroke()}
+else if(name==='cat'){ellipse(0,8,34,31);g.beginPath();g.moveTo(-33,0);g.lineTo(-33,-38);g.lineTo(-8,-18);g.lineTo(8,-18);g.lineTo(33,-38);g.lineTo(33,0);g.fill();ellipse(-12,3,4,6,'#fff');ellipse(12,3,4,6,'#fff');ellipse(0,16,4,3,'#fda4af');g.strokeStyle='#fff';g.beginPath();g.moveTo(-40,14);g.lineTo(-17,18);g.moveTo(17,18);g.lineTo(40,14);g.stroke()}
+else if(name==='fish'){ellipse(-4,0,31,22);g.beginPath();g.moveTo(20,0);g.lineTo(45,-25);g.lineTo(45,25);g.closePath();g.fill();ellipse(-20,-5,4,4,'white')}
+else if(name==='butterfly'){ellipse(-20,-15,21,28);ellipse(20,-15,21,28);ellipse(-18,22,17,19);ellipse(18,22,17,19);ellipse(0,4,5,32,'#334155');g.beginPath();g.moveTo(0,-20);g.lineTo(-12,-44);g.moveTo(0,-20);g.lineTo(12,-44);g.stroke()}
+else if(name==='tree'){g.fillStyle='#967255';g.fillRect(-7,10,14,38);ellipse(-18,-5,23,23);ellipse(18,-5,23,23);ellipse(0,-24,26,26)}
+else if(name==='sun'){ellipse(0,0,25,25);g.beginPath();for(let i=0;i<12;i++){let a=i*Math.PI/6;g.moveTo(33*Math.cos(a),33*Math.sin(a));g.lineTo(45*Math.cos(a),45*Math.sin(a))}g.stroke()}
+else if(name==='cloud'){ellipse(-23,10,21,19);ellipse(0,-3,26,26);ellipse(25,10,20,20);g.fillRect(-25,10,50,20)}
+else if(name==='car'){g.beginPath();g.roundRect(-45,-7,90,32,9);g.moveTo(-29,-7);g.lineTo(-15,-30);g.lineTo(20,-30);g.lineTo(35,-7);g.fill();ellipse(-26,27,11,11,'#334155');ellipse(27,27,11,11,'#334155');g.fillStyle='#e0f2fe';g.fillRect(-12,-23,28,16)}
+else if(name==='boat'){g.beginPath();g.moveTo(-47,17);g.lineTo(42,17);g.lineTo(25,39);g.lineTo(-28,39);g.closePath();g.fill();g.beginPath();g.moveTo(0,13);g.lineTo(0,-43);g.lineTo(35,9);g.closePath();g.fill();g.stroke()}
+else if(name==='sparkle'){pathShape(g,'star',90,90);g.fill()}
+else if(name==='heart'){pathShape(g,'heart',85,85);g.fill()}else if(builtInExtraNames.has(name)){stampArtExtra(g,name,color)}g.restore()}
+function seeded(i){let x=Math.sin(i*127.1+311.7)*43758.5453;return x-Math.floor(x)}
+// Variable-width brush outline: paint one continuous region once per stroke.
+// This avoids darker joints and gaps caused by repainting every segment.
+function strokePressureOutline(g,ps,size,pressure){
+ if(ps.length<2)return;
+ const left=[],right=[],normals=[];
+ for(let i=0;i<ps.length;i++){
+  const prev=ps[Math.max(0,i-1)],next=ps[Math.min(ps.length-1,i+1)];
+  let dx=next.x-prev.x,dy=next.y-prev.y,len=Math.hypot(dx,dy);
+  if(len<1e-5){dx=1;dy=0;len=1}
+  const nx=-dy/len,ny=dx/len,r=size*(pressure?clamp(.25+(ps[i].p??.5),.15,1.25):1)/2;
+  normals.push(Math.atan2(ny,nx));
+  left.push({x:ps[i].x+nx*r,y:ps[i].y+ny*r,r});
+  right.push({x:ps[i].x-nx*r,y:ps[i].y-ny*r,r});
+ }
+ g.beginPath();g.moveTo(left[0].x,left[0].y);
+ for(let i=1;i<left.length;i++)g.lineTo(left[i].x,left[i].y);
+ const last=ps.length-1;
+ g.arc(ps[last].x,ps[last].y,left[last].r,normals[last],normals[last]+Math.PI,true);
+ for(let i=last;i>=0;i--)g.lineTo(right[i].x,right[i].y);
+ g.arc(ps[0].x,ps[0].y,left[0].r,normals[0]+Math.PI,normals[0]+2*Math.PI,true);
+ g.closePath();g.fill();
+}
+/* v1.6.5: soft airbrush dabs, distance-spaced rather than event-spaced.
+   A 96px tinted gradient stamp is cached by color (bounded to 12 colors).
+   Stroke opacity is applied only once, without the previous 0.035 multiplier. */
+const airbrushStampCache=new Map();
+function getAirbrushStamp(color){
+ let stamp=airbrushStampCache.get(color);
+ if(stamp)return stamp;
+ const rgb=/^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(color);
+ const rr=rgb?parseInt(rgb[1],16):2,gg=rgb?parseInt(rgb[2],16):132,bb=rgb?parseInt(rgb[3],16):199;
+ stamp=canvas(96,96);const sg=stamp.getContext('2d');
+ const radial=sg.createRadialGradient(48,48,0,48,48,48);
+ const rgba=a=>`rgba(${rr},${gg},${bb},${a})`;
+ radial.addColorStop(0,rgba(.48));
+ radial.addColorStop(.25,rgba(.38));
+ radial.addColorStop(.58,rgba(.13));
+ radial.addColorStop(1,rgba(0));
+ sg.fillStyle=radial;sg.fillRect(0,0,96,96);
+ if(airbrushStampCache.size>=12)airbrushStampCache.delete(airbrushStampCache.keys().next().value);
+ airbrushStampCache.set(color,stamp);
+ return stamp;
+}
+function drawAirbrush(g,o){
+ const ps=o.points;if(!ps.length)return;
+ const stamp=getAirbrushStamp(o.color),baseRadius=Math.max(.75,o.size*.5),step=Math.max(.75,baseRadius*.40);
+ const dab=p=>{
+  const pressure=o.pressure?clamp(.5+(p.p??.5),.3,1.5):1;
+  const r=baseRadius*pressure;
+  g.drawImage(stamp,p.x-r,p.y-r,2*r,2*r);
+ };
+ // A tap deposits a visible soft dot, and sparse/fast moves never skip segments.
+ dab(ps[0]);let total=0,next=step;
+ for(let i=1;i<ps.length;i++){
+  const a=ps[i-1],b=ps[i],dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy);
+  if(len<.00001)continue;
+  while(next<=total+len){
+   const t=clamp((next-total)/len,0,1);
+   dab({x:a.x+dx*t,y:a.y+dy*t,p:(a.p??.5)+((b.p??.5)-(a.p??.5))*t});
+   next+=step;
+  }
+  total+=len;
+ }
+ if(ps.length>1&&total>0&&total-(next-step)>step*.55)dab(ps[ps.length-1]);
+}
+function drawStroke(g,o){const ps=o.points;if(!ps.length)return;g.save();g.globalAlpha=o.alpha;g.globalCompositeOperation=o.brush==='eraser'?'destination-out':'source-over';g.strokeStyle=o.color;g.fillStyle=o.color;g.lineCap='round';g.lineJoin='round';let seed=o.seed||1;
+ if(o.brush==='airbrush'){drawAirbrush(g,o)}
+ else if(['pastel','pencil'].includes(o.brush)){
+  for(let i=0;i<ps.length;i++){
+   const a=ps[Math.max(0,i-1)],b=ps[i],d=Math.hypot(b.x-a.x,b.y-a.y),steps=Math.max(1,Math.ceil(d/Math.max(1,o.size*.12)));
+   for(let j=0;j<steps;j++){
+    const t=j/steps,x=a.x+(b.x-a.x)*t,y=a.y+(b.y-a.y)*t,r=o.size*(o.pressure?(.25+b.p):.5),count=o.brush==='pencil'?7:24;
+    g.globalAlpha=o.alpha*.16;
+    for(let k=0;k<count;k++){
+     const s=seed+i*400+j*37+k,ang=seeded(s)*Math.PI*2,rr=Math.sqrt(seeded(s+7))*r;
+     g.fillRect(x+Math.cos(ang)*rr,y+Math.sin(ang)*rr,o.brush==='pencil'?.8:1.6,o.brush==='pencil'?.8:1.6)
+    }
+   }
+  }
+ }else{
+  if(o.brush==='marker')g.globalAlpha=o.alpha*.25;
+  if(ps.length===1){const radius=o.size*(o.pressure?clamp(.25+(ps[0].p??.5),.15,1.25):1)/2;g.beginPath();g.arc(ps[0].x,ps[0].y,radius,0,Math.PI*2);g.fill()}
+  else if(o.pressure)strokePressureOutline(g,ps,o.size,true);
+  else{g.lineWidth=o.size;g.beginPath();g.moveTo(ps[0].x,ps[0].y);for(let i=1;i<ps.length;i++)g.lineTo(ps[i].x,ps[i].y);g.stroke()}
+ }
+ g.restore()
+}
+function drawObject(g,o){if(o.kind==='ribbonPreview'){const c=renderRibbonBuffer();if(c)g.drawImage(c,0,0);return}if(o.kind==='eraseMask'){const mask=assets.get(o.src);if(mask){g.save();g.globalCompositeOperation='destination-out';g.drawImage(mask,0,0,doc.w,doc.h);g.restore()}return}if(o.kind==='stroke'){drawStroke(g,o);return}g.save();if(o.matrix)g.transform(...o.matrix);g.translate(o.x||0,o.y||0);g.rotate(o.angle||0);g.scale(o.fx||1,o.fy||1);g.globalAlpha=o.alpha??1;
+if(o.kind==='image'){const im=assets.get(o.src);if(im)g.drawImage(im,-o.w/2,-o.h/2,o.w,o.h)}else if(o.kind==='stamp')stampArt(g,o.stamp,o.w,o.h,o.color);else if(o.kind==='shape'){g.strokeStyle=o.color;g.fillStyle=o.fillColor||o.color;g.lineWidth=o.lineWidth||2;if(o.points){g.beginPath();o.points.forEach((p,i)=>g[i?'lineTo':'moveTo'](p.x,p.y));if(o.closed)g.closePath()}else pathShape(g,o.shape,o.w,o.h);if(o.fill&&o.shape!=='line')g.fill();if(o.stroke)g.stroke()}g.restore()}
+function render(){if(board.width!==doc.w||board.height!==doc.h){board.width=doc.w;board.height=doc.h}ctx.clearRect(0,0,doc.w,doc.h);for(const o of doc.objects)drawObject(ctx,o);paint()}
+function paint(){if(framePending)return;framePending=true;requestAnimationFrame(()=>{framePending=false;drawView()})}
+function drawView(){vctx.setTransform(dpr,0,0,dpr,0,0);vctx.clearRect(0,0,view.width/dpr,view.height/dpr);vctx.save();vctx.translate(camera.x,camera.y);vctx.scale(camera.z,camera.z);vctx.shadowColor='#0f172a18';vctx.shadowBlur=24/camera.z;vctx.fillStyle=doc.bg==='transparent'?'#fff':doc.bg;vctx.fillRect(0,0,doc.w,doc.h);vctx.shadowBlur=0;if(doc.bg==='transparent'){vctx.fillStyle='#e2e8f0';for(let y=0;y<doc.h;y+=20)for(let x=0;x<doc.w;x+=20)if((x/20+y/20)%2===0)vctx.fillRect(x,y,20,20)}vctx.save();vctx.beginPath();vctx.rect(0,0,doc.w,doc.h);vctx.clip();if(!(preview&&(!axis||settings.effect==='decal')))vctx.drawImage(board,0,0);if(live){if(live.kind==='stroke'){if(live.brush==='eraser'){const tmp=canvas(doc.w,doc.h),tg=tmp.getContext('2d');tg.drawImage(board,0,0);drawStroke(tg,live);vctx.fillStyle=doc.bg==='transparent'?'#fff':doc.bg;vctx.fillRect(0,0,doc.w,doc.h);vctx.drawImage(tmp,0,0)}else drawStroke(vctx,live)}else if(live.kind==='ribbonErasePreview'){const tmp=renderRibbonErasePreview();if(tmp){vctx.fillStyle=doc.bg==='transparent'?'#fff':doc.bg;vctx.fillRect(0,0,doc.w,doc.h);vctx.drawImage(tmp,0,0)}}else drawObject(vctx,live)}if(marble)vctx.drawImage(marble.c,0,0,doc.w,doc.h);if(preview){vctx.globalAlpha=axis&&settings.effect!=='decal'?.7:1;if(axis&&settings.effect==='decal')vctx.drawImage(preview,0,0,doc.w,doc.h);else vctx.drawImage(preview,0,0);vctx.globalAlpha=1}if(settings.grid&&camera.z>.15){vctx.strokeStyle='#64748b22';vctx.lineWidth=1/camera.z;vctx.beginPath();for(let x=0;x<=doc.w;x+=25){vctx.moveTo(x,0);vctx.lineTo(x,doc.h)}for(let y=0;y<=doc.h;y+=25){vctx.moveTo(0,y);vctx.lineTo(doc.w,y)}vctx.stroke()}vctx.restore();
+const o=objectById();if(o&&o.kind!=='stroke'){vctx.save();if(o.matrix)vctx.transform(...o.matrix);vctx.translate(o.x,o.y);vctx.rotate(o.angle||0);vctx.strokeStyle='#0284c7';vctx.lineWidth=1.5/camera.z;vctx.setLineDash([5/camera.z,4/camera.z]);vctx.strokeRect(-o.w/2,-o.h/2,o.w,o.h);vctx.setLineDash([]);vctx.beginPath();vctx.moveTo(0,-o.h/2);vctx.lineTo(0,-o.h/2-28/camera.z);vctx.stroke();for(const p of [[-o.w/2,-o.h/2],[o.w/2,-o.h/2],[-o.w/2,o.h/2],[o.w/2,o.h/2],[0,-o.h/2-28/camera.z]]){vctx.fillStyle='white';vctx.beginPath();vctx.arc(...p,6/camera.z,0,Math.PI*2);vctx.fill();vctx.stroke()}vctx.restore()}
+if(drag&&['rectselect','lasso'].includes(drag.type)){vctx.strokeStyle='#0284c7';vctx.lineWidth=1.5/camera.z;vctx.setLineDash([5/camera.z,4/camera.z]);vctx.beginPath();if(drag.type==='rectselect')vctx.rect(drag.start.x,drag.start.y,drag.last.x-drag.start.x,drag.last.y-drag.start.y);else drag.points.forEach((p,i)=>vctx[i?'lineTo':'moveTo'](p.x,p.y));vctx.stroke();vctx.setLineDash([])}
+if(axis){vctx.strokeStyle='#0284c7';vctx.lineWidth=2/camera.z;vctx.setLineDash([8/camera.z,6/camera.z]);vctx.beginPath();vctx.moveTo(axis.a.x,axis.a.y);vctx.lineTo(axis.b.x,axis.b.y);vctx.stroke();vctx.setLineDash([]);for(const p of [axis.a,axis.b]){vctx.fillStyle='white';vctx.beginPath();vctx.arc(p.x,p.y,7/camera.z,0,7);vctx.fill();vctx.stroke()}if(settings.effect!=='decal'){const m=axisMid(),n=axisNormal();vctx.beginPath();vctx.moveTo(m.x,m.y);const tip={x:m.x+n.x*axis.dir*40/camera.z,y:m.y+n.y*axis.dir*40/camera.z};vctx.lineTo(tip.x,tip.y);vctx.moveTo(tip.x-n.x*axis.dir*10/camera.z-n.y*6/camera.z,tip.y-n.y*axis.dir*10/camera.z+n.x*6/camera.z);vctx.lineTo(tip.x,tip.y);vctx.lineTo(tip.x-n.x*axis.dir*10/camera.z+n.y*6/camera.z,tip.y-n.y*axis.dir*10/camera.z-n.x*6/camera.z);vctx.stroke()}}vctx.restore();$('zoomLabel').textContent=Math.round(camera.z*100)+'%';placeContext()}
+function setTool(t){if(marble){toast('마블링을 먼저 적용하거나 취소하세요');return}if(pointerMap.size)return;const prev=tool;if(prev!==t)rememberBrushProfile();if(axis)cancelEffect();live=null;drag=null;tool=t;if(t==='draw'&&['bucket','eyedrop'].includes(settings.brush))settings.brush=lastDrawingBrush;if(t==='fill'&&!['bucket','eyedrop'].includes(settings.brush))settings.brush='bucket';if(prev!==t&&(t==='draw'||t==='eraser'))restoreBrushProfile(t==='eraser'?'eraser':settings.brush);updateColorControls();if(t!=='effects')selected=null;document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('active',b.dataset.tool===t));showPanel();paint()}
+function choice(key,entries){return '<div class="choices">'+entries.map(([v,n])=>`<button data-key="${key}" data-val="${v}" class="${settings[key]===v?'active':''}">${n}</button>`).join('')+'</div>'}
+function range(key,name,min,max,step=1){return `<div class="field"><label>${name}</label><input type="range" data-range="${key}" min="${min}" max="${max}" step="${step}" value="${settings[key]}"><output>${settings[key]}</output></div>`}
+function check(key,name){return `<div class="field"><label><input type="checkbox" data-check="${key}" ${settings[key]?'checked':''}>${name}</label></div>`}
+function showPanel(){$('panel').hidden=false;$('panelTitle').textContent=toolNames[tool];let s='';
+if(tool==='draw')s=choice('brush',[['pencil','연필'],['pen','펜'],['brush','붓'],['marker','형광펜'],['airbrush','에어브러시'],['pastel','파스텔'],['smudge','문지르기']])+range('smooth','선 보정',0,.85,.05)+check('pressure','터치펜 필압 사용')+'<p class="note">두 손가락을 함께 움직이면 두 점 사이에 띠 모양으로 채색합니다. 화면 이동·확대는 선택 도구에서 가능합니다.</p>';
+if(tool==='shape')s=choice('shape',[['line','직선'],['polyline','꺾은선'],['polygon','다각형'],['rect','사각형'],['round','둥근 사각형'],['circle','원'],['ellipse','타원'],['triangle','삼각형'],['diamond','마름모'],['pentagon','오각형'],['hexagon','육각형'],['star','별'],['arrow','화살표'],['heart','하트'],['bubble','말풍선']])+check('stroke','테두리 표시')+check('fillShape','내부 채우기')+'<p class="note">드래그하여 그립니다. 꺾은선·다각형은 꼭짓점을 터치한 뒤 완료를 누르세요.</p><button id="finishPoly">다각형 완료</button>';
+if(tool==='select')s=choice('select',[['tap','객체 선택'],['rect','사각 선택'],['lasso','올가미']])+'<p class="note">객체를 터치하여 선택합니다. 모서리 핸들은 크기, 위쪽 핸들은 회전입니다. 빈 공간 드래그 또는 두 손가락으로 화면을 이동합니다. 영역 선택은 현재 그림을 합성한 뒤 잘라내므로 실행취소로 원래 객체를 복구할 수 있습니다.</p>';
+if(tool==='fill')s=choice('brush',[['bucket','페인트통'],['eyedrop','스포이트']])+range('tolerance','색 허용차',0,100)+'<p class="note">페인트통은 연결된 영역을 채웁니다. 채우기 시 현재 그림을 하나의 이미지로 합칩니다.</p>';
+if(tool==='stamp')s=choice('stamp',[...builtInStamps,...customStamps.map((_,i)=>['custom'+i,'내 그림 '+(i+1)])])+range('stampSize','크기',20,500)+range('stampSpace','연속 간격',10,200)+'<button id="importStamp">이미지로 등록</button><button id="canvasStamp">현재 그림 등록</button><button id="manageStamps">등록 스탬프 관리'+(customStamps.length?' ('+customStamps.length+')':'')+'</button><p class="note">터치 또는 드래그하여 연속으로 찍습니다. 저장한 소재는 이 브라우저에서 다시 사용할 수 있습니다.</p>';
+if(tool==='effects')s=choice('effect',[['mirror','기준선 반전'],['copy','대칭 복사'],['decal','데칼코마니'],['marble','마블링'],['tile','직접 모자이크'],['mosaic','자동 모자이크']])+(settings.effect==='decal'?range('spread','번짐',0,20)+range('press','압착',0,.7,.05):'')+(['mirror','copy','decal'].includes(settings.effect)?'<p class="note">'+(settings.effect==='decal'?'캔버스에 접을 기준선을 그리세요. 점선 양쪽 물감이 함께 눌리고 퍼집니다. 방향 지정 없이 결과가 양면에 동일하게 전사됩니다.':'캔버스에 기준선을 그리세요. 선을 드래그해 조절하고, 화살표로 반전·복사 방향을 바꿉니다.')+'</p>':'')+(['tile','mosaic'].includes(settings.effect)?choice('tile',[['square','정사각형'],['triangle','삼각형'],['circle','원형'],['paper','색종이']])+range('tileSize','조각 크기',8,120)+range('gap','간격',0,20)+range('tileAngle','회전',0,180)+range('tileColors','최대 색상 수',2,32)+(settings.effect==='mosaic'?'<button id="mosaicPreview" class="primary">자동 모자이크 미리보기</button>':''):'')+(settings.effect==='marble'?'<button id="openMarble" class="primary">캔버스에서 마블링 시작</button><p class="note">현재 캔버스 위에서 물감을 떨어뜨리고 휘젓습니다. 적용 전까지 원본 그림은 변경되지 않습니다.</p>':'');
+if(tool==='eraser')s='<p class="note">한 손가락이나 펜은 일반 지우개입니다. 두 손가락을 함께 움직이면 두 접점 사이를 넓게 지웁니다. 그림·도형·스탬프에도 적용되며, 두 손가락으로 지운 작업은 한 번에 실행취소할 수 있습니다.</p>'+check('pressure','터치펜 필압 사용');
+$('panelBody').innerHTML=s;$('pinBtn').classList.toggle('active',settings.pin);$('pinBtn').setAttribute('aria-pressed',String(!!settings.pin));
+$('panelBody').querySelectorAll('[data-key]').forEach(b=>b.onclick=()=>{if(tool==='draw'&&b.dataset.key==='brush'&&brushProfiles[b.dataset.val]){rememberBrushProfile();settings.brush=b.dataset.val;lastDrawingBrush=b.dataset.val;restoreBrushProfile(b.dataset.val)}else settings[b.dataset.key]=b.dataset.val;if(b.dataset.key==='effect')cancelEffect();updateColorControls();showPanel();if(b.dataset.key==='effect'&&b.dataset.val==='marble')openMarble()});$('panelBody').querySelectorAll('[data-range]').forEach(i=>i.oninput=()=>{settings[i.dataset.range]=+i.value;i.nextElementSibling.textContent=i.value;if(axis)buildReflection(true)});$('panelBody').querySelectorAll('[data-check]').forEach(i=>i.onchange=()=>settings[i.dataset.check]=i.checked);
+if($('finishPoly'))$('finishPoly').onclick=finishPolygon;if($('importStamp'))$('importStamp').onclick=()=>importImage(true);if($('canvasStamp'))$('canvasStamp').onclick=()=>registerStamp(exportCanvas(false));if($('manageStamps'))$('manageStamps').onclick=manageStamps;if($('openMarble'))$('openMarble').onclick=openMarble;if($('mosaicPreview'))$('mosaicPreview').onclick=mosaicPreview}
+$('optionsBtn').onclick=()=>{$('panel').hidden?!showPanel():$('panel').hidden=true};$('closePanel').onclick=()=>$('panel').hidden=true;$('pinBtn').onclick=()=>{settings.pin=!settings.pin;$('pinBtn').classList.toggle('active',settings.pin);$('pinBtn').setAttribute('aria-pressed',String(settings.pin))};
+$('color').oninput=e=>applyColor(e.target.value);$('size').oninput=e=>{settings.size=+e.target.value;$('sizeOut').textContent=e.target.value;rememberBrushProfile()};$('alpha').oninput=e=>{settings.alpha=+e.target.value/100;$('alphaOut').textContent=e.target.value+'%';rememberBrushProfile()};
 function syncSelectedStyle(){const o=objectById();if(o&&['shape','stamp'].includes(o.kind)){checkpoint();o.color=settings.color;o.fillColor=settings.color;changed()}}
 $('undoBtn').onclick=undo;$('redoBtn').onclick=redo;$('zoomIn').onclick=()=>zoom(1.2);$('zoomOut').onclick=()=>zoom(1/1.2);$('fitBtn').onclick=fit;
 // Browser fullscreen is independent of drawing UI: never hide the toolbar or header.
@@ -84,217 +298,3 @@ function finishRibbon(mode='paint'){
  const c=renderRibbonBuffer();if(!c)return null;
  const src=c.toDataURL(),retained=canvas(c.width,c.height);
  retained.getContext('2d').drawImage(c,0,0);assets.set(src,retained);
- const o={id:uid(),kind:mode==='erase'?'eraseMask':'image',src,
-  x:doc.w/2,y:doc.h/2,w:doc.w,h:doc.h,alpha:1};
- releaseRibbonBuffer();return o;
-}
-function pruneAssets(){
- // Preserve resources used by the active artwork, user stamps, clipboard and Undo/Redo.
- // Releasing a cache entry must never invalidate a retained historical state.
- const keep=new Set([...customStamps,...doc.objects.filter(o=>o.src).map(o=>o.src)]);
- if(copyBuffer?.src)keep.add(copyBuffer.src);
- if(live?.src)keep.add(live.src);
- for(const src of assets.keys()){
-  if(keep.has(src)||history.some(h=>h.includes(src))||future.some(h=>h.includes(src)))continue;
-  // Data URLs are the authoritative serialized resource; this is only a decoded cache.
-  assets.delete(src);
-  // An image may be referenced elsewhere (e.g. thumbnails), so don't mutate its bitmap here.
- }
-}
-function ribbonObject(polys){const c=canvas(doc.w,doc.h),g=c.getContext('2d');g.fillStyle=settings.color;g.globalAlpha=settings.alpha;g.beginPath();for(const ps of polys){ps.forEach((p,i)=>g[i?'lineTo':'moveTo'](p.x,p.y));g.closePath()}g.fill();const src=c.toDataURL();assets.set(src,c);return{id:uid(),kind:'image',src,x:doc.w/2,y:doc.h/2,w:doc.w,h:doc.h,alpha:1}}
-function finishPolygon(){if(!live||!Array.isArray(live.points)||live.points.length<2)return;const ps=live.points,xs=ps.map(p=>p.x),ys=ps.map(p=>p.y),x=(Math.min(...xs)+Math.max(...xs))/2,y=(Math.min(...ys)+Math.max(...ys))/2;live.x=x;live.y=y;live.w=Math.max(1,Math.max(...xs)-Math.min(...xs));live.h=Math.max(1,Math.max(...ys)-Math.min(...ys));live.points=ps.map(p=>({x:p.x-x,y:p.y-y}));checkpoint();doc.objects.push(live);selected=live.id;live=null;changed()}
-/* Selection and object editing. */
-function contextHTML(c,html){if(c.dataset.html!==html){c.innerHTML=html;c.dataset.html=html}}
-function placeContext(){const c=$('context');if(live?.kind==='shape'&&live.points?.length){c.hidden=false;contextHTML(c,'<button data-act="finishPoly" class="primary">완료</button><button data-act="cancelPoly">취소</button>');const p=live.points.at(-1);positionContext(p.x,p.y+30/camera.z);c.querySelectorAll('button').forEach(b=>b.onclick=()=>{if(b.dataset.act==='finishPoly')finishPolygon();else{live=null;paint()}});return}if(axis&&!drag){c.hidden=false;contextHTML(c,settings.effect==='decal'?'<button data-act="apply" class="primary">양면 압착 적용</button><button data-act="cancel">취소</button>':'<button data-act="direction" title="방향 반전">⇄ 방향</button><button data-act="apply" class="primary">적용</button><button data-act="cancel">취소</button>');const m=axisMid();positionContext(m.x,m.y+35/camera.z)}else if(preview&&!axis){c.hidden=false;contextHTML(c,'<button data-act="applyMosaic" class="primary">모자이크 적용</button><button data-act="cancel">취소</button>');positionContext(doc.w/2,doc.h*.15)}else{const o=objectById();if(!o){c.hidden=true;return}c.hidden=false;contextHTML(c,'<button data-act="copy" title="복사·붙여넣기">복제</button><button data-act="flipx" title="좌우 반전">↔</button><button data-act="flipy" title="상하 반전">↕</button><button data-act="edit">속성</button><button data-act="stamp">소재 등록</button><button data-act="delete" title="선택 삭제">삭제</button>');positionContext(o.x,o.y+o.h/2+18/camera.z)}c.querySelectorAll('button').forEach(b=>b.onclick=()=>contextAction(b.dataset.act))}
-function positionContext(x,y){const c=$('context'),w=c.offsetWidth||280;c.style.left=clamp(camera.x+x*camera.z-w/2,10,Math.max(10,stage.clientWidth-w-10))+'px';let top=camera.y+y*camera.z;if(top+c.offsetHeight>stage.clientHeight-65)top-=c.offsetHeight+80;c.style.top=clamp(top,10,Math.max(10,stage.clientHeight-c.offsetHeight-65))+'px'}
-async function contextAction(a){if(a==='direction'){if(settings.effect==='decal')return;axis.dir*=-1;buildReflection();return}if(a==='apply'){await applyReflection();return}if(a==='cancel'){cancelEffect();return}if(a==='applyMosaic'){checkpoint();await replaceWithCanvas(preview);preview=null;changed();return}const o=objectById();if(!o)return;if(a==='edit'){editObject(o);return}if(a==='stamp'){const c=canvas(Math.ceil(o.w+20),Math.ceil(o.h+20)),g=c.getContext('2d'),q=clone(o);q.x=c.width/2;q.y=c.height/2;q.angle=0;drawObject(g,q);registerStamp(c);return}checkpoint();if(a==='copy'){const q=clone(o);q.id=uid();q.x+=24;q.y+=24;doc.objects.push(q);selected=q.id}if(a==='flipx')o.fx=-(o.fx||1);if(a==='flipy')o.fy=-(o.fy||1);if(a==='delete'){doc.objects=doc.objects.filter(q=>q.id!==o.id);selected=null}changed()}
-function editObject(o){modal(`<h2>선택한 그림 편집</h2><div class="rows"><label>너비<input id="objW" type="number" min="1" value="${Math.round(o.w)}"></label><label>높이<input id="objH" type="number" min="1" value="${Math.round(o.h)}"></label><label>회전 (°)<input id="objA" type="number" value="${Math.round((o.angle||0)*180/Math.PI)}"></label><label>투명도 (%)<input id="objO" type="number" min="1" max="100" value="${Math.round((o.alpha??1)*100)}"></label>${o.kind==='shape'?`<label>테두리 색<input id="objC" type="color" value="${o.color}"></label><label>채우기 색<input id="objF" type="color" value="${o.fillColor||o.color}"></label><label><input id="objFill" type="checkbox" ${o.fill?'checked':''}>내부 채우기</label><label><input id="objStroke" type="checkbox" ${o.stroke?'checked':''}>테두리</label>`:''}</div><div class="actions"><button data-close>취소</button><button id="objApply" class="primary">적용</button></div>`);$('objApply').onclick=()=>{const w=+$('objW').value,h=+$('objH').value;if(!(w>0&&h>0&&w<20000&&h<20000))return toast('크기를 확인하세요');checkpoint();if(o.points)o.points=o.points.map(p=>({x:p.x*w/o.w,y:p.y*h/o.h}));o.w=w;o.h=h;o.angle=(+$('objA').value||0)*Math.PI/180;o.alpha=clamp(+$('objO').value/100,.01,1);if(o.kind==='shape'){o.color=$('objC').value;o.fillColor=$('objF').value;o.fill=$('objFill').checked;o.stroke=$('objStroke').checked}closeModal();changed()}}
-async function selectRegion(d){const ps=d.type==='rectselect'?[d.start,{x:d.last.x,y:d.start.y},d.last,{x:d.start.x,y:d.last.y}]:d.points;if(ps.length<3)return;const xs=ps.map(p=>p.x),ys=ps.map(p=>p.y),x=Math.floor(clamp(Math.min(...xs),0,doc.w)),y=Math.floor(clamp(Math.min(...ys),0,doc.h)),w=Math.ceil(clamp(Math.max(...xs),0,doc.w)-x),h=Math.ceil(clamp(Math.max(...ys),0,doc.h)-y);if(w<3||h<3)return;checkpoint();const cut=canvas(w,h),cg=cut.getContext('2d');cg.beginPath();ps.forEach((p,i)=>cg[i?'lineTo':'moveTo'](p.x-x,p.y-y));cg.closePath();cg.clip();cg.drawImage(board,-x,-y);ctx.save();ctx.globalCompositeOperation='destination-out';ctx.beginPath();ps.forEach((p,i)=>ctx[i?'lineTo':'moveTo'](p.x,p.y));ctx.closePath();ctx.fill();ctx.restore();await replaceWithCanvas(board);const src=cut.toDataURL();assets.set(src,cut);const o={id:uid(),kind:'image',src,x:x+w/2,y:y+h/2,w,h};doc.objects.push(o);selected=o.id;changed()}
-async function restoreRaster(src){const im=await getAsset(src);ctx.clearRect(0,0,doc.w,doc.h);ctx.drawImage(im,0,0);paint()}
-async function replaceWithCanvas(c){const frozen=canvas(c.width,c.height);frozen.getContext('2d').drawImage(c,0,0);const src=frozen.toDataURL();assets.set(src,frozen);doc.objects=[{id:uid(),kind:'image',src,x:doc.w/2,y:doc.h/2,w:doc.w,h:doc.h}];selected=null}
-async function commitBoard(){await replaceWithCanvas(board);changed()}
-function getAsset(src){if(assets.has(src))return Promise.resolve(assets.get(src));return new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>{assets.set(src,im);resolve(im)};im.onerror=()=>reject(Error('이미지 읽기 실패'));im.src=src})}
-/* Smudge: pigment transport on the CURRENT composited bitmap. The brush
-   carries color and alpha from the trailing contact footprint to the new one,
-   with feathered mixing rather than stamping a translucent old patch. */
-function smudgeStep(a,b){
- const r=clamp(Math.round(settings.size*.5),4,100),size=r*2+2;
- const ax=Math.round(a.x-r),ay=Math.round(a.y-r),bx=Math.round(b.x-r),by=Math.round(b.y-r);
- const source=ctx.getImageData(ax,ay,size,size).data;
- const dst=ctx.getImageData(bx,by,size,size),out=dst.data;
- const strength=clamp(settings.alpha,0,1);
- let active=false;
- for(let y=1;y<size-1;y++)for(let x=1;x<size-1;x++){
-  const nx=(x-r-1)/r,ny=(y-r-1)/r,rr=nx*nx+ny*ny;
-  if(rr>=1)continue;
-  const edge=(1-rr)*(1-rr);
-  // Tiny local diffusion softens the chalk grains, while the offset source
-  // sample actually pulls pigment along the finger's travel direction.
-  const j=(y*size+x)*4,jl=j-4,jr=j+4,ju=j-size*4,jd=j+size*4;
-  const sa=(source[j+3]*.70+(source[jl+3]+source[jr+3]+source[ju+3]+source[jd+3])*.075)/255;
-  const da=out[j+3]/255;
-  const transport=clamp(edge*strength*.80,0,.82);
-  const smudgeAlpha=(source[j+3]*.70+(source[jl+3]+source[jr+3]+source[ju+3]+source[jd+3])*.075)/255;
-  const newAlpha=da*(1-transport)+smudgeAlpha*transport;
-  if(!newAlpha)continue;
-  for(let ch=0;ch<3;ch++){
-   const sourceColor=(source[j+ch]*source[j+3]*.70+
-    (source[jl+ch]*source[jl+3]+source[jr+ch]*source[jr+3]+source[ju+ch]*source[ju+3]+source[jd+ch]*source[jd+3])*.075)/255;
-   const dstColor=out[j+ch]*da;
-   out[j+ch]=clamp(Math.round((dstColor*(1-transport)+sourceColor*transport)/newAlpha),0,255);
-  }
-  out[j+3]=Math.round(newAlpha*255);active=true;
- }
- if(active)ctx.putImageData(dst,bx,by);
-}
-function smudge(a,b){
- const dist=Math.hypot(b.x-a.x,b.y-a.y),step=Math.max(2,settings.size*.16);
- // Keep each substep within a fraction of the finger pad so pigment doesn't
- // jump or leave disconnected stamps on fast swipes.
- const n=clamp(Math.ceil(dist/step),1,80);
- for(let k=1;k<=n;k++){
-  const t=k/n,p={x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t};
-  const previous={x:a.x+(b.x-a.x)*(k-1)/n,y:a.y+(b.y-a.y)*(k-1)/n};
-  smudgeStep(previous,p);
- }
- paint();
-}
-function eyedrop(p){const g=exportCanvas(true).getContext('2d'),d=g.getImageData(clamp(Math.floor(p.x),0,doc.w-1),clamp(Math.floor(p.y),0,doc.h-1),1,1).data;settings.color='#'+[...d.slice(0,3)].map(n=>n.toString(16).padStart(2,'0')).join('');$('color').value=settings.color;document.querySelectorAll('.swatch').forEach(b=>b.classList.toggle('active',b.dataset.color===settings.color));toast('색상을 가져왔습니다')}
-function floodPixels(match,dest,w,h,px,py,color,alpha,tolerance){
- const x0=clamp(Math.floor(px),0,w-1),y0=clamp(Math.floor(py),0,h-1),i0=(y0*w+x0)*4,target=Array.from(match.slice(i0,i0+4)),seen=new Uint8Array(w*h),stack=[y0*w+x0];let count=0;
- const matches=p=>{if(seen[p])return false;const i=p*4;return Math.abs(match[i]-target[0])<=tolerance&&Math.abs(match[i+1]-target[1])<=tolerance&&Math.abs(match[i+2]-target[2])<=tolerance&&Math.abs(match[i+3]-target[3])<=tolerance};
- while(stack.length){const pos=stack.pop();if(!matches(pos))continue;const y=Math.floor(pos/w);let x=pos%w;while(x>0&&matches(y*w+x-1))x--;let up=false,down=false;for(;x<w&&matches(y*w+x);x++){const p=y*w+x,i=p*4;seen[p]=1;count++;const da=dest[i+3]/255,oa=alpha+da*(1-alpha);for(let ch=0;ch<3;ch++)dest[i+ch]=oa?(color[ch]*alpha+dest[i+ch]*da*(1-alpha))/oa:0;dest[i+3]=Math.round(oa*255);if(y>0){const yes=matches(p-w);if(yes&&!up)stack.push(p-w);up=yes}if(y<h-1){const yes=matches(p+w);if(yes&&!down)stack.push(p+w);down=yes}}}return count;
-}
-async function bucket(p){checkpoint();const visible=exportCanvas(true).getContext('2d').getImageData(0,0,doc.w,doc.h),c=exportCanvas(false),g=c.getContext('2d'),im=g.getImageData(0,0,doc.w,doc.h),rgb=settings.color.match(/\w\w/g).map(x=>parseInt(x,16));floodPixels(visible.data,im.data,doc.w,doc.h,p.x,p.y,rgb,settings.alpha,settings.tolerance);g.putImageData(im,0,0);await replaceWithCanvas(c);changed()}
-// Registered stamp management. Deleting a library entry must not delete artwork that already uses it.
-function manageStamps(){
- modal('<h2>등록 스탬프 관리</h2><p class="note">보관함에서 제거해도 캔버스에 이미 찍은 그림은 그대로 남습니다.</p><div id="customStampList" class="custom-stamp-list"></div><div class="actions"><button data-close>닫기</button></div>');
- // modal() binds data-close before the dynamic rows are populated.
- renderCustomStampList();
-}
-function renderCustomStampList(){
- const list=$('customStampList');if(!list)return;
- list.replaceChildren();
- if(!customStamps.length){const p=document.createElement('p');p.className='note';p.textContent='등록한 내 그림이나 사진이 없습니다.';list.append(p);return}
- customStamps.forEach((src,index)=>{
-  const row=document.createElement('div');row.className='custom-stamp-row';
-  const img=document.createElement('img');img.src=src;img.alt='내 그림 '+(index+1);
-  const name=document.createElement('span');name.textContent='내 그림 '+(index+1);
-  const del=document.createElement('button');del.className='danger';del.textContent='삭제';del.title='내 그림 '+(index+1)+' 보관함에서 삭제';
-  del.onclick=()=>confirmDeleteStamp(index);
-  row.append(img,name,del);list.append(row);
- });
-}
-function confirmDeleteStamp(index){
- if(index<0||index>=customStamps.length)return;
- modal('<h2>등록 스탬프 삭제</h2><p class="note">내 그림 '+(index+1)+'을(를) 스탬프 보관함에서 삭제할까요? 캔버스에 이미 찍은 그림은 지워지지 않습니다.</p><div class="actions"><button id="backToStampList">취소</button><button id="deleteCustomStamp" class="primary">삭제</button></div>');
- $('backToStampList').onclick=manageStamps;
- $('deleteCustomStamp').onclick=async()=>{
-  const button=$('deleteCustomStamp');button.disabled=true;
-  try{
-   const next=customStamps.filter((_,i)=>i!==index);
-   // First persist the shorter list, avoiding deletion being silently undone on reload.
-   if(db)await dbPut('meta',{id:'stamps',value:next});
-   customStamps=next;
-   if(settings.stamp.startsWith('custom')){
-    const old=Number(settings.stamp.slice(6));
-    if(old===index)settings.stamp='flower';
-    else if(old>index)settings.stamp='custom'+(old-1);
-   }
-   pruneAssets();
-   if(tool==='stamp')showPanel();
-   manageStamps();
-   toast(db?'등록 스탬프를 삭제했습니다':'현재 목록에서 삭제했습니다. 이 환경에서는 보관함 저장이 지원되지 않습니다.');
-  }catch(e){button.disabled=false;toast('스탬프 삭제 실패: '+e.message)}
- };
-}
-let customStamps=[];function addStamp(p){let o={id:uid(),kind:'stamp',stamp:settings.stamp,color:settings.color,x:p.x,y:p.y,w:settings.stampSize,h:settings.stampSize,alpha:settings.alpha};if(settings.stamp.startsWith('custom')){const src=customStamps[+settings.stamp.slice(6)];if(!src)return;o.kind='image';o.src=src;const im=assets.get(src);o.h=o.w*im.height/im.width}doc.objects.push(o);
- // v2.0.4: a stamp is appended on top of the already rendered board.
- // Avoid replaying every old object for every new stamp (quadratic cost).
- // The individual stamp stays in doc.objects for selection, undo, save and export.
- drawObject(ctx,o);paint()}
-async function registerStamp(c){const small=canvas(Math.min(2048,c.width),Math.min(2048,c.width)*c.height/c.width);small.getContext('2d').drawImage(c,0,0,small.width,small.height);const src=small.toDataURL();customStamps.push(src);await getAsset(src);if(db)try{await dbPut('meta',{id:'stamps',value:customStamps})}catch(e){toast('소재 저장 실패: '+e.message)}toast('내 그림 소재로 등록했습니다');if(tool==='stamp')showPanel()}
-function importImage(stamp=false){$('imageInput').value='';$('imageInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const src=await readFile(f),im=await getAsset(src),c=canvas(Math.min(4096,im.width),Math.min(4096,im.width)*im.height/im.width);if(c.width*c.height>16e6)throw Error('이미지를 1600만 화소 이하로 줄여주세요');c.getContext('2d').drawImage(im,0,0,c.width,c.height);if(stamp)await registerStamp(c);else{checkpoint();const sc=Math.min(1,doc.w*.8/c.width,doc.h*.8/c.height),data=c.toDataURL();assets.set(data,c);const o={id:uid(),kind:'image',src:data,x:doc.w/2,y:doc.h/2,w:c.width*sc,h:c.height*sc};doc.objects.push(o);setTool('select');selected=o.id;changed()}}catch(err){toast(err.message)}};$('imageInput').click()}
-function readFile(f,text=false){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;text?r.readAsText(f):r.readAsDataURL(f)})}
-/* Effects: shared reflection line, independent mosaic and marbling processors. */
-function axisMid(){return{x:(axis.a.x+axis.b.x)/2,y:(axis.a.y+axis.b.y)/2}}
-function axisNormal(){const dx=axis.b.x-axis.a.x,dy=axis.b.y-axis.a.y,l=Math.hypot(dx,dy)||1;return{x:-dy/l,y:dx/l}}
-// A contact fold is not directional: normal is canonical even if the user draws B→A.
-function foldNormal(a=axis.a,b=axis.b){const dx=b.x-a.x,dy=b.y-a.y,l=Math.hypot(dx,dy)||1;let x=-dy/l,y=dx/l;if((Math.abs(x)>=Math.abs(y)?x:y)<0){x=-x;y=-y}return{x,y}}
-function reflectionMatrix(a,b){const dx=b.x-a.x,dy=b.y-a.y,l=Math.hypot(dx,dy)||1,ux=dx/l,uy=dy/l,A=2*ux*ux-1,B=2*ux*uy,D=2*uy*uy-1;return[A,B,B,D,a.x-A*a.x-B*a.y,a.y-B*a.x-D*a.y]}
-/* Contact print: one dense pigment field, pressed on BOTH faces without a direction.
-   This is a deterministic paint impression, not a physical fluid solver.
-   No blur or translucent offset copies; runtime O(width * height). */
-function decalPressPixels(input,w,h,press,spread,n,m,pixelScale=1){
- const a=input.data,count=w*h,near=new Int32Array(count),dist=new Float32Array(count);
- const pressure=clamp(press/.7,0,1),radius=(spread*(.22+.78*pressure)+pressure*2)*pixelScale,world=1/pixelScale;
- let maxAlpha=0;for(let i=3;i<a.length;i+=4)maxAlpha=Math.max(maxAlpha,a[i]);const seedAlpha=Math.max(1,maxAlpha*.9);
- for(let i=0;i<count;i++){near[i]=a[i*4+3]>=seedAlpha?i:-1;dist[i]=near[i]<0?1e9:0}
- const relax=(i,j,c)=>{if(dist[j]+c<dist[i]){dist[i]=dist[j]+c;near[i]=near[j]}};
- for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=y*w+x;if(x)relax(i,i-1,1);if(y){relax(i,i-w,1);if(x)relax(i,i-w-1,1.4142);if(x+1<w)relax(i,i-w+1,1.4142)}}
- for(let y=h-1;y>=0;y--)for(let x=w-1;x>=0;x--){const i=y*w+x;if(x+1<w)relax(i,i+1,1);if(y+1<h){relax(i,i+w,1);if(x)relax(i,i+w-1,1.4142);if(x+1<w)relax(i,i+w+1,1.4142)}}
- const out=new ImageData(w,h),b=out.data;
- for(let y=0;y<h;y++)for(let x=0;x<w;x++){
-  const side=(x+.5-m.x)*n.x+(y+.5-m.y)*n.y;
-  if(side>0)continue; // intrinsic canonical half; user-facing direction has no effect
-  const u=(x-m.x)*(-n.y)+(y-m.y)*n.x,v=side;
-  // Fold pressure drives paint along the fold and outward from the seam.
-  // Broad ripples plus fine compression lines give soft, continuous squeezed
-  // shapes (not blur, spray noise or a translated ghost copy).
-  const reachFromFold=Math.exp(-Math.abs(v)*world/(26+spread*9));
-  const longWave=Math.sin(u*world*.034+1.6*Math.sin(u*world*.013)+Math.sin(v*world*.017));
-  const fineWave=Math.sin(u*world*.105+2.2*Math.sin(v*world*.031)+.5*Math.sin(u*world*.067));
-  const tangential=pressure*(6+spread*1.25)*pixelScale*reachFromFold*(longWave+.24*fineWave);
-  const normalShift=pressure*(2+spread*.8)*pixelScale*reachFromFold*(.25+longWave*.8);
-  const sx=clamp(Math.round(x-n.y*tangential+n.x*normalShift),0,w-1);
-  const sy=clamp(Math.round(y+n.x*tangential+n.y*normalShift),0,h-1);
-  const i=sy*w+sx,j=near[i];if(j<0)continue;
-  const reach=radius*(.75+.25*Math.sin(u*world*.067+Math.sin(v*world*.036)*1.5));
-  const coverage=clamp(reach-dist[i]+.5,0,1);
-  const outAlpha=Math.max(a[i*4+3],a[j*4+3]*coverage);if(!outAlpha)continue;
-  const k=(y*w+x)*4,q=(a[i*4+3]>=a[j*4+3]*coverage?i:j)*4;
-  // Fine ridges follow the pressed pigment, with no random perforation.
-  const branch=Math.sin(u*world*.12+Math.sin(v*world*.055)*2.3+Math.sin(u*world*.033+v*world*.021));
-  const ridge=Math.pow(Math.max(0,1-Math.abs(branch)*5),2);
-  const shade=1-pressure*(.025+.11*ridge),light=pressure*ridge*12;
-  for(let c=0;c<3;c++)b[k+c]=clamp(a[q+c]*shade+light,0,255);
-  b[k+3]=outAlpha;
- }
- return out;
-}
-function buildDecal(scale=1){
- // Preview runs at reduced resolution while moving the fold; final always uses full document resolution.
- const w=Math.max(1,Math.round(doc.w*scale)),h=Math.max(1,Math.round(doc.h*scale));
- const sx=w/doc.w,sy=h/doc.h,aa={x:axis.a.x*sx,y:axis.a.y*sy},bb={x:axis.b.x*sx,y:axis.b.y*sy};
- const input=canvas(w,h),ig=input.getContext('2d',{willReadFrequently:true});ig.drawImage(board,0,0,w,h);
- const fold=canvas(w,h),fg=fold.getContext('2d',{willReadFrequently:true});fg.setTransform(...reflectionMatrix(aa,bb));fg.drawImage(input,0,0);fg.resetTransform();
- const base=ig.getImageData(0,0,w,h),other=fg.getImageData(0,0,w,h),a=base.data,b=other.data;
- // Equal, bilateral pigment contact: whichever half the paint started on has the same priority.
- for(let k=0;k<a.length;k+=4){const pa=a[k+3]/255,pb=b[k+3]/255;if(!pb)continue;
-  if(pa){const sum=pa+pb;for(let c=0;c<3;c++)a[k+c]=(a[k+c]*pa+b[k+c]*pb)/sum}
-  else for(let c=0;c<3;c++)a[k+c]=b[k+c];
-  a[k+3]=255*(pa+pb-pa*pb);
- }
- const n=foldNormal(aa,bb),m={x:(aa.x+bb.x)/2,y:(aa.y+bb.y)/2};
- const half=canvas(w,h);half.getContext('2d').putImageData(decalPressPixels(base,w,h,settings.press,settings.spread,n,m,Math.min(sx,sy)),0,0);
- const result=canvas(w,h),g=result.getContext('2d');g.drawImage(half,0,0);g.setTransform(...reflectionMatrix(aa,bb));g.drawImage(half,0,0);g.resetTransform();
- input.width=input.height=1;fold.width=fold.height=1;half.width=half.height=1;
- return result;
-}
-function decalPreviewScale(){return Math.min(1,460/Math.max(doc.w,doc.h))}
-
-let reflectionSource=null;
-function buildReflection(draft=false){if(!axis||Math.hypot(axis.b.x-axis.a.x,axis.b.y-axis.a.y)<2)return;if(settings.effect==='decal'){reflectionSource=null;preview=buildDecal(draft?decalPreviewScale():1);paint();return;}const c=canvas(doc.w,doc.h),g=c.getContext('2d'),n=axisNormal(),m=axisMid(),dx=axis.b.x-axis.a.x,dy=axis.b.y-axis.a.y,l=Math.hypot(dx,dy),u={x:dx/l,y:dy/l},far=Math.max(doc.w,doc.h)*6,sgn=-axis.dir;g.beginPath();g.moveTo(m.x-u.x*far,m.y-u.y*far);g.lineTo(m.x+u.x*far,m.y+u.y*far);g.lineTo(m.x+u.x*far+n.x*far*sgn,m.y+u.y*far+n.y*far*sgn);g.lineTo(m.x-u.x*far+n.x*far*sgn,m.y-u.y*far+n.y*far*sgn);g.closePath();g.clip();g.drawImage(board,0,0);reflectionSource=c;preview=canvas(doc.w,doc.h);const pg=preview.getContext('2d');pg.transform(...reflectionMatrix(axis.a,axis.b));pg.drawImage(c,0,0);paint()}
-async function applyReflection(){if(!preview)return;if(settings.effect==='decal')preview=buildDecal(1);checkpoint();const out=canvas(doc.w,doc.h),g=out.getContext('2d');if(settings.effect!=='decal')g.drawImage(board,0,0);if(settings.effect==='mirror'){g.globalCompositeOperation='destination-out';g.drawImage(reflectionSource,0,0);g.globalCompositeOperation='source-over'}g.drawImage(preview,0,0);await replaceWithCanvas(out);cancelEffect();changed()}
-function cancelEffect(){axis=null;preview=null;reflectionSource=null;paint()}
-function tilePath(g,x,y,size,type,angle=0,seed=1){g.save();g.translate(x,y);g.rotate(angle*Math.PI/180);g.beginPath();const r=size/2;if(type==='circle')g.arc(0,0,r,0,Math.PI*2);else if(type==='triangle'){g.moveTo(0,-r);g.lineTo(r,r);g.lineTo(-r,r);g.closePath()}else if(type==='paper'){for(let i=0;i<7;i++){const a=i*Math.PI*2/7,rr=r*(.7+.3*seeded(seed+i));g[i?'lineTo':'moveTo'](Math.cos(a)*rr,Math.sin(a)*rr)}g.closePath()}else g.rect(-r,-r,size,size);g.fill();g.restore()}
-function addTile(p){const n=settings.tileSize,c=canvas(n*1.5,n*1.5),g=c.getContext('2d');g.fillStyle=settings.color;tilePath(g,c.width/2,c.height/2,Math.max(1,n-settings.gap),settings.tile,settings.tileAngle,Date.now());const src=c.toDataURL();assets.set(src,c);doc.objects.push({id:uid(),kind:'image',src,x:p.x,y:p.y,w:c.width,h:c.height,alpha:settings.alpha});render()}
-function mosaicPalette(samples,k){if(!samples.length)return[[255,255,255]];const sorted=[...samples].sort((a,b)=>a.reduce((x,y)=>x+y)-b.reduce((x,y)=>x+y));let centers=Array.from({length:Math.min(k,sorted.length)},(_,i)=>sorted[Math.floor(i*(sorted.length-1)/Math.max(1,k-1))].slice());for(let t=0;t<7;t++){const sums=centers.map(()=>[0,0,0,0]);for(const p of samples){let best=0,d=Infinity;centers.forEach((q,i)=>{const n=p.reduce((s,v,j)=>s+(v-q[j])**2,0);if(n<d){best=i;d=n}});p.forEach((v,j)=>sums[best][j]+=v);sums[best][3]++}centers=centers.map((c,i)=>sums[i][3]?sums[i].slice(0,3).map(v=>v/sums[i][3]):c)}return centers}
-function mosaicPreview(){const source=exportCanvas(true),src=source.getContext('2d').getImageData(0,0,doc.w,doc.h).data,c=canvas(doc.w,doc.h),g=c.getContext('2d'),n=settings.tileSize;let rect={x:0,y:0,w:doc.w,h:doc.h};const o=objectById();if(o)rect={x:Math.max(0,o.x-o.w/2),y:Math.max(0,o.y-o.h/2),w:o.w,h:o.h};const tiles=[];for(let y=rect.y;y<Math.min(doc.h,rect.y+rect.h);y+=n)for(let x=rect.x;x<Math.min(doc.w,rect.x+rect.w);x+=n){let sums=[0,0,0],count=0;for(let yy=y;yy<Math.min(doc.h,y+n);yy+=Math.max(1,n/4))for(let xx=x;xx<Math.min(doc.w,x+n);xx+=Math.max(1,n/4)){const k=(Math.floor(yy)*doc.w+Math.floor(xx))*4;for(let ch=0;ch<3;ch++)sums[ch]+=src[k+ch];count++}tiles.push({x,y,rgb:sums.map(v=>v/count)})}const sample=tiles.filter((_,i)=>i%Math.max(1,Math.ceil(tiles.length/3000))===0).map(t=>t.rgb),colors=mosaicPalette(sample,settings.tileColors);g.drawImage(board,0,0);g.clearRect(rect.x,rect.y,rect.w,rect.h);g.save();g.beginPath();g.rect(rect.x,rect.y,rect.w,rect.h);g.clip();for(const t of tiles){let best=colors[0],dist=Infinity;for(const c of colors){const d=c.reduce((s,v,i)=>s+(v-t.rgb[i])**2,0);if(d<dist){dist=d;best=c}}g.fillStyle=`rgb(${best.map(Math.round).join(',')})`;tilePath(g,t.x+n/2,t.y+n/2,Math.max(1,n-settings.gap),settings.tile,settings.tileAngle,t.x+t.y)}g.restore();preview=c;axis=null;$('panel').hidden=true;paint()}
-/* Deferred marbling replay: pure, dependency-free worker body. Logical space stays 320×220. */
-function marbleWorkerMain(){
- function mapOp(o,x,y){
-  if(o.type==='drop'){const dx=x-o.x,dy=y-o.y,d=Math.hypot(dx,dy);if(d<1)return[x,y];const v=Math.sqrt(Math.max(0,d*d-o.r*o.r))/d;return[o.x+dx*v,o.y+dy*v]}
-  if(o.type==='stir'){const r=o.r||Math.sqrt(1200),d=(x-o.x)**2+(y-o.y)**2,k=Math.exp(-d/(r*r))*.85;return[x-o.dx*k,y-o.dy*k]}
-  if(o.type==='flow'){const steps=o.steps||1,dx=o.tx*.035*o.str*steps,dy=o.ty*.035*o.str*steps,eddy=o.str*steps*.013;return[x-dx-Math.sin(y*.04+o.t+Math.sin(x*.017))*eddy*Math.abs(o.tx),y-dy-Math.sin(x*.04-o.t+Math.sin(y*.015))*eddy*Math.abs(o.ty)];}
-  return[x+Math.sin(y*.12+o.t)*o.strength,y+Math.sin(x*.09-o.t)*o.strength*.65];

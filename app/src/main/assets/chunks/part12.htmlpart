@@ -1,0 +1,14 @@
+  b.replaceChildren(art,label);b.dataset.kidsDecorated='1';
+ }
+ decorateNamedButton('openMarble',A.effects,'캔버스에서 마블링 시작');
+ decorateNamedButton('mosaicPreview',A.options,'자동 모자이크 미리보기');
+ decorateNamedButton('closePanel',A.cancel,'패널 닫기');
+ decorateNamedButton('pinBtn',A.pin,'패널 고정');
+ decorateMarbleDock();
+}
+const panelBody=$id('panelBody'); if(panelBody) new MutationObserver(decoratePanel).observe(panelBody,{childList:true,subtree:false});
+window.refreshKidsPanel=decoratePanel; decorateMarbleDock();
+})();
+</script>
+
+</body></html>

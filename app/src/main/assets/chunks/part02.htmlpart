@@ -152,7 +152,7 @@ body.cyber :is(header,nav,#panel,#marbleDock,#viewbar,#context,dialog,#bottom) b
  header .brand{font-size:11px!important;letter-spacing:0!important}
  body.cyber header .cy-neon-title::after{content:'CYBER';font-size:11px;letter-spacing:0}
  header .brand small{display:block!important;font-size:0!important;line-height:1.2!important;margin-top:2px;color:#64748b}
- header .brand small::after{content:'v3.0';font-size:9px;font-weight:600;letter-spacing:0}
+ header .brand small::after{content:'v4.0';font-size:9px;font-weight:600;letter-spacing:0}
  body.cyber header .brand small{color:#ffb8ed}
 }
 @media (max-width:350px){
